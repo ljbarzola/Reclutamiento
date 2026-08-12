@@ -6,12 +6,6 @@ on:
     paths:
       - 'backend/**'
 
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: ${{ secrets.GCP_AR_REGION }}
-  REPO: ${{ secrets.GCP_AR_REPO }}
-  SERVICE_NAME: recruitment-backend
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -29,31 +23,35 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ REGION }}-docker.pkg.dev
+        run: gcloud auth configure-docker ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev
 
       - name: Build Docker Image
         run: |
-          docker build -t ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }} ./backend
+          docker build -t \
+            ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/recruitment-backend:${{ github.sha }} \
+            ./backend
 
       - name: Push to Artifact Registry
-        run: docker push ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }}
+        run: |
+          docker push \
+            ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/recruitment-backend:${{ github.sha }}
 
       - name: Create Secret in Secret Manager
         run: |
           echo '${{ secrets.GCP_SA_KEY }}' > /tmp/sa-key.json
           gcloud secrets create service-account-json \
             --data-file=/tmp/sa-key.json \
-            --project=${{ PROJECT_ID }} || \
+            --project=${{ secrets.GCP_PROJECT_ID }} || \
           gcloud secrets versions add service-account-json \
             --data-file=/tmp/sa-key.json \
-            --project=${{ PROJECT_ID }}
+            --project=${{ secrets.GCP_PROJECT_ID }}
           rm /tmp/sa-key.json
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ SERVICE_NAME }} \
-            --image ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }} \
-            --region ${{ REGION }} \
+          gcloud run deploy recruitment-backend \
+            --image ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/recruitment-backend:${{ github.sha }} \
+            --region ${{ secrets.GCP_AR_REGION }} \
             --allow-unauthenticated \
             --set-secrets "GOOGLE_SERVICE_ACCOUNT_JSON=service-account-json:latest" \
             --set-env-vars "GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID=${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}" \
