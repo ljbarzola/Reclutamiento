@@ -1,0 +1,49 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_AR_REGION }}
+  REPO: ${{ secrets.GCP_AR_REPO }}
+  SERVICE_NAME: recruitment-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ REGION }}-docker.pkg.dev
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }} ./backend
+
+      - name: Push to Artifact Registry
+        run: docker push ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ SERVICE_NAME }} \
+            --image ${{ REGION }}-docker.pkg.dev/${{ PROJECT_ID }}/${{ REPO }}/${{ SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars "GOOGLE_SERVICE_ACCOUNT_JSON=/secrets/service-account.json" \
+            --set-secrets "GOOGLE_SERVICE_ACCOUNT_JSON=service-account-json:latest" \
+            --port 8080

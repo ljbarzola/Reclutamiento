@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+uploads
+coverage
+*.json
+!package.json
+!tsconfig.json
+!nest-cli.json
+!package-lock.json
