@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "reclutamiento-gemeseg",
+    "site": "reclutamiento-505320",
     "public": "frontend/dist",
     "ignore": [
       "firebase.json",
