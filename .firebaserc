@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "reclutamiento-gemeseg"
+  },
+  "targets": {
+    "reclutamiento-gemeseg": {
+      "hosting": {
+        "reclutamiento-gemeseg": {
+          "site": "reclutamiento-gemeseg"
+        }
+      }
+    }
   }
 }
