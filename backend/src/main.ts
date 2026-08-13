@@ -17,6 +17,8 @@ async function bootstrap() {
         'http://localhost:3000',
         'http://localhost:5173',
         'https://reclutamiento.gemeseg.com',
+        'https://reclutamiento-505320.web.app',
+        'https://reclutamiento-505320.firebaseapp.com',
       ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
