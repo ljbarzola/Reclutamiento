@@ -6,54 +6,73 @@ interface JobDetailProps {
   onClose: () => void;
 }
 
+// Basic fields already requested by default in the Application Form
+const STANDARD_FIELDS = [
+  'nombre',
+  'nombre completo',
+  'cédula',
+  'cedula',
+  'teléfono',
+  'telefono',
+  'email',
+  'correo',
+  'correo electrónico',
+  'correo electronico',
+];
+
 export default function JobDetail({ job, onClose }: JobDetailProps) {
+  // Filter out redundant standard fields
+  const extraCampos = (job.camposRequeridos || []).filter(
+    (campo) => !STANDARD_FIELDS.includes(campo.trim().toLowerCase())
+  );
+
   return (
     <div className="job-detail-overlay" onClick={onClose}>
       <div className="job-detail-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="close-button" onClick={onClose}>
-          ×
-        </button>
-        
-        <div className="job-detail-header">
-          <h2>{job.puesto}</h2>
+        {/* Modal Header */}
+        <div className="modal-header-banner">
+          <div className="header-badge-wrap">
+            <span className="badge-active-modal">Convocatoria Abierta</span>
+            <span className="badge-job-id">Código de Vacante: #{job.id}</span>
+          </div>
+          <h2 className="modal-job-title">{job.puesto}</h2>
+          <p className="modal-job-subtitle">
+            Complete el formulario de registro y adjunte los documentos requeridos.
+          </p>
+          <button className="modal-close-btn" onClick={onClose} title="Cerrar ventana">
+            ✕
+          </button>
         </div>
-        
+
+        {/* Modal Content */}
         <div className="job-detail-content">
+          {/* Job Overview / Description */}
           {job.descripcion && (
-            <div className="job-description-section">
-              <h3>Descripción del puesto</h3>
-              <p>{job.descripcion}</p>
-            </div>
-          )}
-          
-          {job.archivosRequeridos && job.archivosRequeridos.length > 0 && (
-            <div className="job-documents-section">
-              <h3>Documentos requeridos</h3>
-              <ul>
-                {job.archivosRequeridos.map((doc, index) => (
-                  <li key={index} className="required">
-                    <span className="doc-name">{doc}</span>
-                    <span className="required-badge">Obligatorio</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="modal-section-card">
+              <h3 className="section-title">Perfil y Funciones del Puesto</h3>
+              <p className="job-description-text">{job.descripcion}</p>
             </div>
           )}
 
-          {job.camposRequeridos && job.camposRequeridos.length > 0 && (
-            <div className="job-documents-section">
-              <h3>Información requerida</h3>
-              <ul>
-                {job.camposRequeridos.map((campo, index) => (
-                  <li key={index}>
-                    <span className="doc-name">{campo}</span>
-                  </li>
+          {/* Extra Fields if non-standard fields exist */}
+          {extraCampos.length > 0 && (
+            <div className="modal-section-card">
+              <h3 className="section-title">Requisitos Adicionales del Puesto</h3>
+              <div className="extra-campos-tags">
+                {extraCampos.map((campo, index) => (
+                  <span key={index} className="extra-campo-chip">
+                    {campo}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
-          
-          <ApplicationForm job={job} onSuccess={onClose} />
+
+          {/* Application Form */}
+          <div className="modal-section-card form-section-card">
+            <h3 className="section-title">Formulario de Postulación de Candidato</h3>
+            <ApplicationForm job={job} onSuccess={onClose} />
+          </div>
         </div>
       </div>
     </div>

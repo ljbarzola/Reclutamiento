@@ -63,6 +63,7 @@ export default function RecruitmentPage() {
     <div className="recruitment-page">
       <header className="recruitment-header">
         <div className="header-content">
+          <img src="/logo-gemeseg-bgblue.png" alt="GEMESEG" className="header-logo" />
           <h1>Portal de Reclutamiento</h1>
           <p>Únete a nuestro equipo</p>
         </div>

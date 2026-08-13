@@ -8,10 +8,13 @@ import DocumentUploader from './DocumentUploader';
 import SuccessModal from './SuccessModal';
 
 const applicationSchema = z.object({
-  nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
-  cedula: z.string().min(10, 'La cédula debe tener al menos 10 caracteres'),
-  email: z.string().email('Ingrese un email válido'),
-  telefono: z.string().optional(),
+  nombre: z.string().min(3, 'Ingrese sus nombres y apellidos completos'),
+  cedula: z
+    .string()
+    .min(10, 'Ingrese un número de cédula o identificación válido (mínimo 10 dígitos)')
+    .regex(/^[0-9a-zA-Z-]+$/, 'Formato de identificación no válido'),
+  email: z.string().email('Ingrese una dirección de correo electrónico válida'),
+  telefono: z.string().min(7, 'Ingrese un número telefónico de contacto válido'),
 });
 
 type ApplicationFormData = z.infer<typeof applicationSchema>;
@@ -37,21 +40,19 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
 
   const onSubmit = async (data: ApplicationFormData) => {
     if (files.length === 0) {
-      alert('Por favor suba al menos un documento');
+      alert('Por favor adjunte la documentación requerida antes de enviar su postulación.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('nombre', data.nombre);
-      formData.append('cedula', data.cedula);
-      formData.append('email', data.email);
-      if (data.telefono) {
-        formData.append('telefono', data.telefono);
-      }
+      formData.append('nombre', data.nombre.trim());
+      formData.append('cedula', data.cedula.trim());
+      formData.append('email', data.email.trim());
+      formData.append('telefono', data.telefono ? data.telefono.trim() : '');
       formData.append('jobId', job.id.toString());
-      
+
       files.forEach((file) => {
         formData.append('files', file);
       });
@@ -60,7 +61,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       setApplicationResult(result);
       setShowSuccess(true);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Error al enviar la aplicación');
+      alert(error instanceof Error ? error.message : 'Ocurrió un error al registrar la postulación.');
     } finally {
       setIsSubmitting(false);
     }
@@ -80,77 +81,83 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="application-form">
-      <h3>Formulario de Aplicación</h3>
-      
-      <div className="form-group">
-        <label htmlFor="nombre">Nombre completo *</label>
-        <input
-          type="text"
-          id="nombre"
-          {...register('nombre')}
-          placeholder="Ingrese su nombre completo"
-        />
-        {errors.nombre && (
-          <span className="error-text">{errors.nombre.message}</span>
-        )}
+      <p className="form-instruction">
+        Ingrese sus datos personales de contacto tal como figuran en su documento oficial de identidad.
+      </p>
+
+      <div className="form-grid-2">
+        <div className="form-group">
+          <label htmlFor="nombre">
+            Nombres y Apellidos Completos <span className="req-star">*</span>
+          </label>
+          <input
+            type="text"
+            id="nombre"
+            {...register('nombre')}
+            className="form-input"
+          />
+          {errors.nombre && <span className="error-text">{errors.nombre.message}</span>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="cedula">
+            Cédula de Identidad <span className="req-star">*</span>
+          </label>
+          <input
+            type="text"
+            id="cedula"
+            {...register('cedula')}
+            className="form-input"
+          />
+          {errors.cedula && <span className="error-text">{errors.cedula.message}</span>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="email">
+            Correo Electrónico <span className="req-star">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            {...register('email')}
+            className="form-input"
+          />
+          {errors.email && <span className="error-text">{errors.email.message}</span>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="telefono">
+            Teléfono Móvil de Contacto <span className="req-star">*</span>
+          </label>
+          <input
+            type="tel"
+            id="telefono"
+            {...register('telefono')}
+            className="form-input"
+          />
+          {errors.telefono && <span className="error-text">{errors.telefono.message}</span>}
+        </div>
       </div>
 
-      <div className="form-group">
-        <label htmlFor="cedula">Cédula *</label>
-        <input
-          type="text"
-          id="cedula"
-          {...register('cedula')}
-          placeholder="Ingrese su número de cédula"
-        />
-        {errors.cedula && (
-          <span className="error-text">{errors.cedula.message}</span>
-        )}
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="email">Email *</label>
-        <input
-          type="email"
-          id="email"
-          {...register('email')}
-          placeholder="correo@ejemplo.com"
-        />
-        {errors.email && (
-          <span className="error-text">{errors.email.message}</span>
-        )}
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="telefono">Teléfono</label>
-        <input
-          type="tel"
-          id="telefono"
-          {...register('telefono')}
-          placeholder="+593 99 123 4567"
-        />
-      </div>
-
+      {/* Document Uploader */}
       <DocumentUploader
         requiredDocuments={job.archivosRequeridos || []}
         onFilesChange={setFiles}
-        files={files}
       />
 
-      <button
-        type="submit"
-        className="submit-button"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? (
-          <>
-            <span className="spinner-small"></span>
-            Enviando...
-          </>
-        ) : (
-          'Enviar Aplicación'
-        )}
-      </button>
+      {/* Submit Button */}
+      <div className="form-actions">
+        <button type="submit" className="submit-button" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <span className="spinner-small"></span>
+              Procesando envío de datos...
+            </>
+          ) : (
+            'Enviar Postulación Oficial'
+          )}
+        </button>
+      </div>
     </form>
   );
 }
