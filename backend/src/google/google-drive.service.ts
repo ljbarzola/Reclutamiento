@@ -36,18 +36,22 @@ export class GoogleDriveService {
 
   private async initDrive() {
     try {
-      const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-      if (!serviceAccountPath) {
-        this.logger.warn('GOOGLE_SERVICE_ACCOUNT_JSON not configured');
-        return;
-      }
+      const serviceAccountBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+      const serviceAccountRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_FILE;
 
       let serviceAccount;
-      if (fs.existsSync(serviceAccountPath)) {
-        const fileContent = fs.readFileSync(serviceAccountPath, 'utf-8');
-        serviceAccount = JSON.parse(fileContent);
+
+      if (serviceAccountBase64) {
+        const decoded = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+        serviceAccount = JSON.parse(decoded);
+      } else if (serviceAccountRaw) {
+        serviceAccount = JSON.parse(serviceAccountRaw);
+      } else if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
       } else {
-        serviceAccount = JSON.parse(serviceAccountPath);
+        this.logger.warn('GOOGLE_SERVICE_ACCOUNT_JSON not configured');
+        return;
       }
 
       const auth = new google.auth.GoogleAuth({
