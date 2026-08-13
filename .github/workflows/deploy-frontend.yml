@@ -28,7 +28,7 @@ jobs:
         run: npm run build
         working-directory: frontend
         env:
-          VITE_API_URL: https://recruitment-backend-${{ secrets.GCP_PROJECT_ID }}.a.run.app
+          VITE_API_URL: https://recruitment-backend-957200955585.us-central1.run.app
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}
