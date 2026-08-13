@@ -49,7 +49,7 @@ export class GoogleDriveService implements OnModuleInit {
   private recruitmentFolderId: string;
 
   constructor() {
-    this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '';
+    this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru';
   }
 
   async onModuleInit() {
@@ -65,7 +65,7 @@ export class GoogleDriveService implements OnModuleInit {
       let serviceAccount;
 
       if (serviceAccountBase64) {
-        const decoded = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+        const decoded = Buffer.from(serviceAccountBase64.trim(), 'base64').toString('utf-8');
         serviceAccount = JSON.parse(decoded);
       } else if (serviceAccountRaw) {
         serviceAccount = JSON.parse(serviceAccountRaw);
