@@ -47,9 +47,14 @@ export class GoogleDriveService implements OnModuleInit {
   private readonly logger = new Logger(GoogleDriveService.name);
   private drive: any;
   private recruitmentFolderId: string;
+  private serviceAccountEmail: string = '';
 
   constructor() {
     this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru';
+  }
+
+  getServiceAccountEmail(): string {
+    return this.serviceAccountEmail;
   }
 
   async onModuleInit() {
@@ -76,13 +81,14 @@ export class GoogleDriveService implements OnModuleInit {
         return;
       }
 
+      this.serviceAccountEmail = serviceAccount.client_email || 'unknown';
       const auth = new google.auth.GoogleAuth({
         credentials: serviceAccount,
         scopes: ['https://www.googleapis.com/auth/drive'],
       });
 
       this.drive = google.drive({ version: 'v3', auth });
-      this.logger.log('Google Drive service initialized successfully');
+      this.logger.log(`Google Drive service initialized with SA Email: ${this.serviceAccountEmail}`);
     } catch (error) {
       this.logger.error('Failed to initialize Google Drive service', error);
     }
