@@ -35,30 +35,6 @@ export default function RecruitmentPage() {
     setSelectedJob(null);
   };
 
-  if (loading) {
-    return (
-      <div className="recruitment-page">
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Cargando puestos disponibles...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="recruitment-page">
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button onClick={fetchJobs} className="retry-button">
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="recruitment-page">
       <header className="recruitment-header">
@@ -70,7 +46,7 @@ export default function RecruitmentPage() {
       </header>
 
       <main className="recruitment-main">
-        <JobsList jobs={jobs} onSelectJob={handleSelectJob} />
+        <JobsList jobs={jobs} loading={loading} error={error} onRetry={fetchJobs} onSelectJob={handleSelectJob} />
       </main>
 
       {selectedJob && (

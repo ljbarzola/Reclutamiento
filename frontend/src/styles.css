@@ -378,6 +378,182 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   SKELETON LOADING CARDS (SHIMMER)
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 3px solid var(--gris-claro);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 100%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.skeleton-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skeleton-badge {
+  width: 130px;
+  height: 20px;
+  background: var(--gris-claro);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-badge-id {
+  width: 50px;
+  height: 14px;
+  background: var(--gris-claro);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-line {
+  background: var(--gris-claro);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-title {
+  width: 70%;
+  height: 22px;
+}
+
+.skeleton-text-long {
+  width: 100%;
+  height: 12px;
+}
+
+.skeleton-text-medium {
+  width: 80%;
+  height: 12px;
+}
+
+.skeleton-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.skeleton-chip {
+  width: 80px;
+  height: 22px;
+  background: var(--gris-claro);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-button {
+  width: 100%;
+  height: 40px;
+  border-radius: var(--radius-md);
+  margin-top: 8px;
+}
+
+.skeleton-loading-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ERROR CARD
+   ═══════════════════════════════════════════════════════════════ */
+
+.error-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 48px 32px;
+  text-align: center;
+  border: 1px solid #FECACA;
+  max-width: 480px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-icon-circle {
+  width: 64px;
+  height: 64px;
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 2px solid #FECACA;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.error-card h3 {
+  font-size: 1.2rem;
+  color: var(--azul-oscuro);
+  font-weight: 700;
+}
+
+.error-card p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+.retry-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 22px;
+  background: var(--naranja);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.retry-button:hover {
+  background: var(--naranja-hover);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
    MODAL DE DETALLE Y POSTULACIÓN (MODAL)
    ═══════════════════════════════════════════════════════════════ */
 
