@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_FRONTEND }}
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
@@ -31,4 +36,4 @@ jobs:
           VITE_API_URL: https://recruitment-backend-957200955585.us-central1.run.app
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --project reclutamiento-505320 --token ${{ secrets.FIREBASE_TOKEN }}
+        run: firebase deploy --only hosting --project reclutamiento-505320
