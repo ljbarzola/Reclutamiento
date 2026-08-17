@@ -31,4 +31,4 @@ jobs:
           VITE_API_URL: https://recruitment-backend-957200955585.us-central1.run.app
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}
+        run: firebase deploy --only hosting --project reclutamiento-505320 --token ${{ secrets.FIREBASE_TOKEN }}
