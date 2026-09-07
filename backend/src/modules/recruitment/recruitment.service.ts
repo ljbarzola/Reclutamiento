@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { GoogleDriveService, CandidateData, fixUtf8Encoding } from '../../google/google-drive.service';
+import { GoogleEmailService } from '../../google/google-email.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
 import * as fs from 'fs';
 
@@ -7,7 +8,10 @@ import * as fs from 'fs';
 export class RecruitmentService {
   private readonly logger = new Logger(RecruitmentService.name);
 
-  constructor(private driveService: GoogleDriveService) {}
+  constructor(
+    private driveService: GoogleDriveService,
+    private emailService: GoogleEmailService,
+  ) {}
 
   async getActiveJobs() {
     return this.driveService.getJobsFromDrive();
@@ -91,7 +95,11 @@ export class RecruitmentService {
 
     await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
 
-    // 5. Clean up local temp files
+    // 5. Notify RRHH by email (best-effort, must not fail the submission)
+    const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
+    await this.emailService.sendCandidateNotification(candidateData, folderLink);
+
+    // 6. Clean up local temp files
     if (files && files.length > 0) {
       for (const file of files) {
         try {
@@ -103,8 +111,6 @@ export class RecruitmentService {
         }
       }
     }
-
-    const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
 
     return {
       success: true,

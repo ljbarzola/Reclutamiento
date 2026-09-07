@@ -51,10 +51,18 @@ Este documento contiene todo el contexto, arquitectura, credenciales, reglas y p
 - **Puerto local backend:** `3000`
 - **Prefijo global de API:** `/api`
 - **Endpoints:**
-  - `GET /api/health` — Health check de Cloud Run
+  - `GET /api/health` — Health check de Cloud Run (incluye `isConfigured` de Drive y `emailConfigured` de Gmail)
   - `GET /api/recruitment/jobs` — Retorna la lista de vacantes en JSON desde Google Drive
   - `GET /api/recruitment/jobs/:id` — Retorna la vacante específica por ID
-  - `POST /api/recruitment/applications/submit` — Recibe `multipart/form-data` (campos de candidato + `files`) y crea carpeta + sube archivos a Google Drive.
+  - `POST /api/recruitment/applications/submit` — Recibe `multipart/form-data` (campos de candidato + `files`), crea carpeta + sube archivos a Google Drive, y notifica a RRHH por email (`GoogleEmailService`, best-effort).
+
+---
+
+## 📧 Notificación por Email (Gmail API)
+- `backend/src/google/google-email.service.ts` reutiliza el mismo Service Account de Drive, pero con scope `gmail.send` e impersonando `GMAIL_SEND_EMAIL` (domain-wide delegation).
+- Requiere que un admin de Google Workspace habilite **Domain-Wide Delegation** para el Client ID del Service Account con el scope `https://www.googleapis.com/auth/gmail.send`.
+- El envío es best-effort: si falla, se loguea el error pero **no** interrumpe la postulación ya guardada en Drive.
+- Variables: `GMAIL_SEND_EMAIL` (remitente impersonado) y `RRHH_EMAIL` (destinatario).
 
 ---
 
