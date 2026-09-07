@@ -4,6 +4,9 @@ import { GoogleEmailService } from '../../google/google-email.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
 import * as fs from 'fs';
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
+const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+
 @Injectable()
 export class RecruitmentService {
   private readonly logger = new Logger(RecruitmentService.name);
@@ -29,100 +32,120 @@ export class RecruitmentService {
     dto: SubmitApplicationDto,
     files: Express.Multer.File[],
   ) {
-    const jobId = parseInt(dto.jobId, 10);
-    if (isNaN(jobId)) {
-      throw new BadRequestException('Invalid job ID');
-    }
-
-    const job = await this.getJobById(jobId);
-
-    const requiredFiles = job.archivosRequeridos || [];
-    if (requiredFiles.length > 0 && (!files || files.length === 0)) {
-      throw new BadRequestException('Required documents must be uploaded');
-    }
-
-    // 1. Get or create the job vacancy folder (e.g. "Guardia")
-    const jobFolderId = await this.driveService.getOrCreateJobFolder(job.puesto);
-    if (!jobFolderId) {
-      throw new BadRequestException('Failed to resolve job folder in Google Drive');
-    }
-
-    // 2. Create the candidate folder inside the job vacancy folder (e.g. "Juan Perez - 0987654321")
-    const candidateName = fixUtf8Encoding(dto.nombre);
-    const candidateCedula = fixUtf8Encoding(dto.cedula);
-    const candidateFolderId = await this.driveService.createCandidateFolder(
-      candidateName,
-      candidateCedula,
-      jobFolderId,
-    );
-
-    if (!candidateFolderId) {
-      throw new BadRequestException('Failed to create candidate folder in Google Drive');
-    }
-
-    // 3. Upload all candidate files to candidate folder with clean UTF-8 names
-    const uploadedFiles: { nombre: string; tipo: string }[] = [];
-
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const cleanOriginalName = fixUtf8Encoding(file.originalname);
-        const result = await this.driveService.uploadFile(
-          file.path,
-          cleanOriginalName,
-          file.mimetype,
-          candidateFolderId,
-        );
-        if (result) {
-          uploadedFiles.push({
-            nombre: cleanOriginalName,
-            tipo: file.mimetype,
-          });
-        }
+    try {
+      const jobId = parseInt(dto.jobId, 10);
+      if (isNaN(jobId)) {
+        throw new BadRequestException('Invalid job ID');
       }
-    }
 
-    // 4. Create and upload candidato.json
-    const candidateData: CandidateData = {
-      nombre: candidateName,
-      cedula: candidateCedula,
-      telefono: fixUtf8Encoding(dto.telefono || ''),
-      email: fixUtf8Encoding(dto.email),
-      puesto: fixUtf8Encoding(job.puesto),
-      puestoId: job.id,
-      fechaPostulacion: new Date().toISOString(),
-      archivos: uploadedFiles,
-    };
+      const job = await this.getJobById(jobId);
 
-    await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
-
-    // 5. Notify RRHH by email (best-effort, must not fail the submission)
-    const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
-    await this.emailService.sendCandidateNotification(candidateData, folderLink);
-
-    // 6. Clean up local temp files
-    if (files && files.length > 0) {
-      for (const file of files) {
-        try {
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
-          }
-        } catch (e) {
-          this.logger.warn(`Failed to clean up local file: ${file.path}`);
-        }
+      const requiredFiles = job.archivosRequeridos || [];
+      if (requiredFiles.length > 0 && (!files || files.length === 0)) {
+        throw new BadRequestException('Required documents must be uploaded');
       }
-    }
 
-    return {
-      success: true,
-      message: 'Application submitted successfully',
-      application: {
+      this.validateFiles(files);
+
+      // 1. Get or create the job vacancy folder (e.g. "Guardia")
+      const jobFolderId = await this.driveService.getOrCreateJobFolder(job.puesto);
+      if (!jobFolderId) {
+        throw new BadRequestException('Failed to resolve job folder in Google Drive');
+      }
+
+      // 2. Create the candidate folder inside the job vacancy folder (e.g. "Juan Perez - 0987654321")
+      const candidateName = fixUtf8Encoding(dto.nombre);
+      const candidateCedula = fixUtf8Encoding(dto.cedula);
+      const candidateFolderId = await this.driveService.createCandidateFolder(
         candidateName,
-        candidateEmail: candidateData.email,
-        jobTitle: candidateData.puesto,
-        driveLink: folderLink,
-        status: 'PENDING',
-        createdAt: candidateData.fechaPostulacion,
-      },
-    };
+        candidateCedula,
+        jobFolderId,
+      );
+
+      if (!candidateFolderId) {
+        throw new BadRequestException('Failed to create candidate folder in Google Drive');
+      }
+
+      // 3. Upload all candidate files to candidate folder with clean UTF-8 names
+      const uploadedFiles: { nombre: string; tipo: string }[] = [];
+
+      if (files && files.length > 0) {
+        for (const file of files) {
+          const cleanOriginalName = fixUtf8Encoding(file.originalname);
+          const result = await this.driveService.uploadFile(
+            file.path,
+            cleanOriginalName,
+            file.mimetype,
+            candidateFolderId,
+          );
+          if (result) {
+            uploadedFiles.push({
+              nombre: cleanOriginalName,
+              tipo: file.mimetype,
+            });
+          }
+        }
+      }
+
+      // 4. Create and upload candidato.json
+      const candidateData: CandidateData = {
+        nombre: candidateName,
+        cedula: candidateCedula,
+        telefono: fixUtf8Encoding(dto.telefono || ''),
+        email: fixUtf8Encoding(dto.email),
+        puesto: fixUtf8Encoding(job.puesto),
+        puestoId: job.id,
+        fechaPostulacion: new Date().toISOString(),
+        archivos: uploadedFiles,
+      };
+
+      await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
+
+      // 5. Notify RRHH by email (best-effort, must not fail the submission)
+      const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
+      await this.emailService.sendCandidateNotification(candidateData, folderLink);
+
+      return {
+        success: true,
+        message: 'Application submitted successfully',
+        application: {
+          candidateName,
+          candidateEmail: candidateData.email,
+          jobTitle: candidateData.puesto,
+          driveLink: folderLink,
+          status: 'PENDING',
+          createdAt: candidateData.fechaPostulacion,
+        },
+      };
+    } finally {
+      this.cleanupTempFiles(files);
+    }
+  }
+
+  private validateFiles(files: Express.Multer.File[]) {
+    for (const file of files || []) {
+      const extension = ('.' + (file.originalname.split('.').pop() || '')).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(extension)) {
+        throw new BadRequestException(
+          `File type not allowed: ${file.originalname}. Allowed types: ${ALLOWED_EXTENSIONS.join(', ')}`,
+        );
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        throw new BadRequestException(`File exceeds maximum size of 15MB: ${file.originalname}`);
+      }
+    }
+  }
+
+  private cleanupTempFiles(files: Express.Multer.File[]) {
+    if (!files || files.length === 0) return;
+    for (const file of files) {
+      try {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to clean up local file: ${file.path}`);
+      }
+    }
   }
 }

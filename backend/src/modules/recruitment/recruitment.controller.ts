@@ -9,6 +9,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { RecruitmentService } from './recruitment.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
@@ -35,6 +36,7 @@ export class RecruitmentController {
   }
 
   @Post('applications/submit')
+  @Throttle({ default: { limit: 3, ttl: 600_000 } })
   @ApiOperation({ summary: 'Enviar aplicación con documentos' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

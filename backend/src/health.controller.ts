@@ -13,7 +13,6 @@ export class HealthController {
   check() {
     return {
       status: 'ok',
-      saEmail: this.driveService.getServiceAccountEmail(),
       isConfigured: this.driveService.isConfigured(),
       emailConfigured: this.emailService.isConfigured(),
     };

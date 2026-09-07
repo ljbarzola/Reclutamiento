@@ -66,6 +66,14 @@ Este documento contiene todo el contexto, arquitectura, credenciales, reglas y p
 
 ---
 
+## 🛡️ Validaciones y Rate Limiting
+- `RecruitmentService.validateFiles` rechaza en el backend (no solo en el frontend) archivos con extensión fuera de `.pdf .doc .docx .xls .xlsx .jpg .jpeg .png` o mayores a 15MB, antes de tocar Google Drive.
+- Los archivos temporales de Multer (`uploads/`) se limpian siempre en un `finally`, incluso si la postulación falla en cualquier paso (antes solo se limpiaban en el camino feliz).
+- `@nestjs/throttler` está activo globalmente (`AppModule`, 20 req/min por IP vía `APP_GUARD`) y con un límite más estricto en `POST /api/recruitment/applications/submit` (3 envíos cada 10 minutos por IP) para mitigar spam/abuso.
+- `GET /api/health` ya no expone el email del Service Account (`saEmail`), solo `isConfigured`/`emailConfigured`, para no filtrar esa información en un endpoint público.
+
+---
+
 ## 💻 Frontend & UI/UX Guidelines
 - **Puerto local frontend:** `5173` (`http://localhost:5173`)
 - **Favicon:** `/favicon/favicon.svg` y `/favicon/favicon-96x96.png`

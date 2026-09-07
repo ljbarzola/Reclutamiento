@@ -53,10 +53,6 @@ export class GoogleDriveService implements OnModuleInit {
     this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru';
   }
 
-  getServiceAccountEmail(): string {
-    return this.serviceAccountEmail;
-  }
-
   async onModuleInit() {
     await this.initDrive();
   }

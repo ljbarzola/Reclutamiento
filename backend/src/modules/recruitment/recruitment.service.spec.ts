@@ -72,10 +72,30 @@ describe('RecruitmentService', () => {
       path: '/tmp/upload1',
       originalname: 'cedula.pdf',
       mimetype: 'application/pdf',
+      size: 1024,
     } as Express.Multer.File;
 
     it('throws when jobId is not numeric', async () => {
       await expect(service.submitApplication({ ...dto, jobId: 'abc' }, [])).rejects.toThrow(BadRequestException);
+    });
+
+    it('cleans up temp files even when the submission fails early', async () => {
+      await expect(service.submitApplication({ ...dto, jobId: 'abc' }, [file])).rejects.toThrow(BadRequestException);
+      expect(fs.unlinkSync).toHaveBeenCalledWith(file.path);
+    });
+
+    it('rejects files with a disallowed extension', async () => {
+      driveService.getJobByIdFromDrive.mockResolvedValue(job);
+      const badFile = { ...file, originalname: 'malware.exe' } as Express.Multer.File;
+      await expect(service.submitApplication(dto, [badFile])).rejects.toThrow(BadRequestException);
+      expect(driveService.getOrCreateJobFolder).not.toHaveBeenCalled();
+    });
+
+    it('rejects files larger than 15MB', async () => {
+      driveService.getJobByIdFromDrive.mockResolvedValue(job);
+      const bigFile = { ...file, size: 16 * 1024 * 1024 } as Express.Multer.File;
+      await expect(service.submitApplication(dto, [bigFile])).rejects.toThrow(BadRequestException);
+      expect(driveService.getOrCreateJobFolder).not.toHaveBeenCalled();
     });
 
     it('throws when required documents are missing', async () => {
