@@ -63,6 +63,7 @@ Este documento contiene todo el contexto, arquitectura, credenciales, reglas y p
 - Requiere que un admin de Google Workspace habilite **Domain-Wide Delegation** para el Client ID del Service Account con el scope `https://www.googleapis.com/auth/gmail.send`.
 - El envío es best-effort: si falla, se loguea el error pero **no** interrumpe la postulación ya guardada en Drive.
 - Variables: `GMAIL_SEND_EMAIL` (remitente impersonado) y `RRHH_EMAIL` (destinatario).
+- **CI/CD:** `.github/workflows/deploy-backend.yml` inyecta `GMAIL_SEND_EMAIL`/`RRHH_EMAIL` a Cloud Run leyéndolos de los GitHub Actions secrets `GMAIL_SEND_EMAIL`/`RRHH_EMAIL` (deben crearse en Settings → Secrets and variables → Actions del repo). Sin esos secrets, el deploy sigue funcionando pero el servicio queda con esas env vars vacías y el envío de correo se omite silenciosamente (`emailConfigured: false` en `/api/health`).
 
 ---
 
