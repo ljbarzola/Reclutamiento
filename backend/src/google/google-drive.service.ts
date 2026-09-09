@@ -82,6 +82,16 @@ export class GoogleDriveService implements OnModuleInit {
     }
   }
 
+  private isJobVacancyJson(data: any): boolean {
+    return (
+      data &&
+      typeof data === 'object' &&
+      typeof data.id === 'number' &&
+      typeof data.puesto === 'string' &&
+      Array.isArray(data.archivosRequeridos)
+    );
+  }
+
   async getJobsFromDrive(): Promise<JobVacancy[]> {
     if (!this.drive) {
       this.logger.warn('Drive service not initialized');
@@ -89,31 +99,78 @@ export class GoogleDriveService implements OnModuleInit {
     }
 
     try {
-      const response = await this.drive.files.list({
-        q: `'${this.recruitmentFolderId}' in parents and name contains '.json' and mimeType='application/json'`,
+      const jobs: JobVacancy[] = [];
+      const seenIds = new Set<number>();
+
+      const directJsonResponse = await this.drive.files.list({
+        q: `'${this.recruitmentFolderId}' in parents and name contains '.json' and mimeType='application/json' and trashed = false`,
         fields: 'files(id, name)',
         ...SHARED_DRIVE_OPTIONS,
       });
 
-      const files = response.data.files || [];
-      const jobs: JobVacancy[] = [];
-
-      for (const file of files) {
+      for (const file of directJsonResponse.data.files || []) {
         try {
           const content = await this.getFileContent(file.id);
           if (content) {
-            const job = typeof content === 'string' ? JSON.parse(content) : (content as any);
-            jobs.push({
-              id: job.id,
-              puesto: fixUtf8Encoding(job.puesto),
-              descripcion: fixUtf8Encoding(job.descripcion),
-              camposRequeridos: (job.camposRequeridos || []).map((c: string) => fixUtf8Encoding(c)),
-              archivosRequeridos: (job.archivosRequeridos || []).map((a: string) => fixUtf8Encoding(a)),
-              createdAt: job.createdAt,
-            });
+            const data = typeof content === 'string' ? JSON.parse(content) : content;
+            if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
+              seenIds.add(data.id);
+              jobs.push({
+                id: data.id,
+                puesto: fixUtf8Encoding(data.puesto),
+                descripcion: fixUtf8Encoding(data.descripcion),
+                camposRequeridos: (data.camposRequeridos || []).map((c: string) => fixUtf8Encoding(c)),
+                archivosRequeridos: (data.archivosRequeridos || []).map((a: string) => fixUtf8Encoding(a)),
+                createdAt: data.createdAt,
+              });
+            }
           }
         } catch (error) {
           this.logger.warn(`Failed to read job file: ${file.name}`);
+        }
+      }
+
+      if (jobs.length === 0) {
+        const folderResponse = await this.drive.files.list({
+          q: `'${this.recruitmentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+          fields: 'files(id, name)',
+          ...SHARED_DRIVE_OPTIONS,
+        });
+
+        for (const folder of folderResponse.data.files || []) {
+          try {
+            const folderJsonResponse = await this.drive.files.list({
+              q: `'${folder.id}' in parents and name contains '.json' and mimeType='application/json' and trashed = false`,
+              fields: 'files(id, name)',
+              ...SHARED_DRIVE_OPTIONS,
+            });
+
+            for (const file of folderJsonResponse.data.files || []) {
+              if (file.name === 'candidato.json') continue;
+
+              try {
+                const content = await this.getFileContent(file.id);
+                if (content) {
+                  const data = typeof content === 'string' ? JSON.parse(content) : content;
+                  if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
+                    seenIds.add(data.id);
+                    jobs.push({
+                      id: data.id,
+                      puesto: fixUtf8Encoding(data.puesto),
+                      descripcion: fixUtf8Encoding(data.descripcion),
+                      camposRequeridos: (data.camposRequeridos || []).map((c: string) => fixUtf8Encoding(c)),
+                      archivosRequeridos: (data.archivosRequeridos || []).map((a: string) => fixUtf8Encoding(a)),
+                      createdAt: data.createdAt,
+                    });
+                  }
+                }
+              } catch (error) {
+                this.logger.warn(`Failed to read job file in folder ${folder.name}: ${file.name}`);
+              }
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to list files in folder: ${folder.name}`);
+          }
         }
       }
 
