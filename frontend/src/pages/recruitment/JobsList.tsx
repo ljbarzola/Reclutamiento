@@ -174,7 +174,7 @@ export default function JobsList({ jobs, loading, error, onRetry, onSelectJob }:
                     <div className="chips-container">
                       {job.archivosRequeridos.slice(0, 3).map((doc, idx) => (
                         <span key={idx} className="doc-preview-chip">
-                          {doc}
+                          {doc.nombre}
                         </span>
                       ))}
                       {docCount > 3 && (

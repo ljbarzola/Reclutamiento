@@ -1,9 +1,21 @@
+export interface CampoRequerido {
+  nombre: string;
+  tipo: string;
+  obligatorio: boolean;
+}
+
+export interface ArchivoRequerido {
+  nombre: string;
+  extensiones: string[];
+  obligatorio: boolean;
+}
+
 export interface Job {
   id: number;
   puesto: string;
   descripcion: string;
-  camposRequeridos: string[];
-  archivosRequeridos: string[];
+  camposRequeridos: CampoRequerido[];
+  archivosRequeridos: ArchivoRequerido[];
   createdAt: string;
 }
 

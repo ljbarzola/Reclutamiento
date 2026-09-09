@@ -17,7 +17,7 @@ describe('RecruitmentService', () => {
     puesto: 'Guardia',
     descripcion: 'Vacante de guardia',
     camposRequeridos: [],
-    archivosRequeridos: ['Cédula'],
+    archivosRequeridos: [{ nombre: 'Cédula', extensiones: ['pdf'], obligatorio: true }],
     createdAt: '2026-01-01T00:00:00.000Z',
   };
 
@@ -71,7 +71,7 @@ describe('RecruitmentService', () => {
     };
     const file = {
       path: '/tmp/upload1',
-      originalname: 'cedula.pdf',
+      originalname: 'Cédula - cedula.pdf',
       mimetype: 'application/pdf',
       size: 1024,
     } as Express.Multer.File;

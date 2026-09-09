@@ -1,5 +1,10 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { GoogleDriveService, CandidateData, fixUtf8Encoding } from '../../google/google-drive.service';
+import {
+  GoogleDriveService,
+  CandidateData,
+  ArchivoRequerido,
+  fixUtf8Encoding,
+} from '../../google/google-drive.service';
 import { GoogleEmailService } from '../../google/google-email.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
 import * as fs from 'fs';
@@ -40,12 +45,8 @@ export class RecruitmentService {
 
       const job = await this.getJobById(jobId);
 
-      const requiredFiles = job.archivosRequeridos || [];
-      if (requiredFiles.length > 0 && (!files || files.length === 0)) {
-        throw new BadRequestException('Required documents must be uploaded');
-      }
-
       this.validateFiles(files);
+      this.validateRequiredFiles(job.archivosRequeridos || [], files || []);
 
       const jobFolderId = await this.driveService.getOrCreateJobFolder(job.puesto);
       if (!jobFolderId) {
@@ -139,6 +140,24 @@ export class RecruitmentService {
       };
     } finally {
       this.cleanupTempFiles(files);
+    }
+  }
+
+  private validateRequiredFiles(
+    requiredFiles: ArchivoRequerido[],
+    files: Express.Multer.File[],
+  ) {
+    const missing = requiredFiles.filter(
+      (req) =>
+        req.obligatorio &&
+        !files.some((f) =>
+          f.originalname.toLowerCase().startsWith(req.nombre.toLowerCase()),
+        ),
+    );
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Faltan documentos requeridos: ${missing.map((m) => m.nombre).join(', ')}`,
+      );
     }
   }
 

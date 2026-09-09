@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
+import { ArchivoRequerido } from '../../types/recruitment';
 
 interface DocumentUploaderProps {
-  requiredDocuments: string[];
-  onFilesChange: (files: File[]) => void;
+  requiredDocuments: ArchivoRequerido[];
+  onFilesChange: (files: File[], docMap: Record<string, File[]>) => void;
 }
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
+const FALLBACK_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
 const MAX_FILES_PER_DOC = 2;
 const MAX_EXTRA_DOCS = 5;
+
+const GENERIC_SLOT: ArchivoRequerido = {
+  nombre: 'Documentos Generales',
+  extensiones: [],
+  obligatorio: false,
+};
 
 export default function DocumentUploader({
   requiredDocuments,
@@ -18,7 +25,7 @@ export default function DocumentUploader({
   const [dragSlot, setDragActiveSlot] = useState<string | null>(null);
 
   // Initialize empty slots
-  const slots = requiredDocuments.length > 0 ? requiredDocuments : ['Documentos Generales'];
+  const slots = requiredDocuments.length > 0 ? requiredDocuments : [GENERIC_SLOT];
 
   // Update parent whenever docMap changes
   useEffect(() => {
@@ -33,13 +40,18 @@ export default function DocumentUploader({
         allFiles.push(renamedFile);
       });
     });
-    onFilesChange(allFiles);
+    onFilesChange(allFiles, docMap);
   }, [docMap]);
 
-  const validateFile = (file: File): boolean => {
+  const extensionsForSlot = (slot: ArchivoRequerido): string[] =>
+    slot.extensiones.length > 0
+      ? slot.extensiones.map((ext) => (ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`))
+      : FALLBACK_EXTENSIONS;
+
+  const validateFile = (file: File, allowedExtensions: string[]): boolean => {
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(extension)) {
-      alert(`El archivo "${file.name}" no corresponde a un formato permitido (${ALLOWED_EXTENSIONS.join(', ')}).`);
+    if (!allowedExtensions.includes(extension)) {
+      alert(`El archivo "${file.name}" no corresponde a un formato permitido (${allowedExtensions.join(', ')}).`);
       return false;
     }
     if (file.size > 15 * 1024 * 1024) {
@@ -49,7 +61,7 @@ export default function DocumentUploader({
     return true;
   };
 
-  const addFilesToSlot = (slotName: string, newFiles: FileList | File[]) => {
+  const addFilesToSlot = (slotName: string, newFiles: FileList | File[], allowedExtensions: string[]) => {
     const currentSlotFiles = docMap[slotName] || [];
     if (currentSlotFiles.length >= MAX_FILES_PER_DOC) {
       alert(`Ha alcanzado el límite máximo de ${MAX_FILES_PER_DOC} archivos para el requerimiento "${slotName}".`);
@@ -61,7 +73,7 @@ export default function DocumentUploader({
 
     for (let i = 0; i < Math.min(newFiles.length, availableSlots); i++) {
       const file = newFiles[i];
-      if (validateFile(file)) {
+      if (validateFile(file, allowedExtensions)) {
         filesToAdd.push(file);
       }
     }
@@ -103,7 +115,9 @@ export default function DocumentUploader({
       </div>
 
       <div className="slots-grid">
-        {slots.map((slotName, idx) => {
+        {slots.map((slot, idx) => {
+          const slotName = slot.nombre;
+          const allowedExtensions = extensionsForSlot(slot);
           const slotFiles = docMap[slotName] || [];
           const isFull = slotFiles.length >= MAX_FILES_PER_DOC;
           const isDragging = dragSlot === slotName;
@@ -131,7 +145,7 @@ export default function DocumentUploader({
                 e.stopPropagation();
                 setDragActiveSlot(null);
                 if (!isFull && e.dataTransfer.files) {
-                  addFilesToSlot(slotName, e.dataTransfer.files);
+                  addFilesToSlot(slotName, e.dataTransfer.files, allowedExtensions);
                 }
               }}
             >
@@ -142,10 +156,12 @@ export default function DocumentUploader({
                     {slotFiles.length} de {MAX_FILES_PER_DOC} archivos adjuntos
                   </span>
                 </div>
-                {slotFiles.length === 0 ? (
+                {slotFiles.length > 0 ? (
+                  <span className="badge-uploaded">Adjuntado</span>
+                ) : slot.obligatorio ? (
                   <span className="badge-required">Requerido</span>
                 ) : (
-                  <span className="badge-uploaded">Adjuntado</span>
+                  <span className="badge-optional">Opcional</span>
                 )}
               </div>
 
@@ -179,10 +195,10 @@ export default function DocumentUploader({
                   <input
                     type="file"
                     className="hidden-file-input"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    accept={allowedExtensions.join(',')}
                     onChange={(e) => {
                       if (e.target.files) {
-                        addFilesToSlot(slotName, e.target.files);
+                        addFilesToSlot(slotName, e.target.files, allowedExtensions);
                         e.target.value = '';
                       }
                     }}
@@ -203,7 +219,7 @@ export default function DocumentUploader({
           onDrop={(e) => {
             e.preventDefault();
             if (e.dataTransfer.files) {
-              addFilesToSlot('Documentos Adicionales', e.dataTransfer.files);
+              addFilesToSlot('Documentos Adicionales', e.dataTransfer.files, FALLBACK_EXTENSIONS);
             }
           }}
         >
@@ -245,10 +261,10 @@ export default function DocumentUploader({
               <input
                 type="file"
                 className="hidden-file-input"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                accept={FALLBACK_EXTENSIONS.join(',')}
                 onChange={(e) => {
                   if (e.target.files) {
-                    addFilesToSlot('Documentos Adicionales', e.target.files);
+                    addFilesToSlot('Documentos Adicionales', e.target.files, FALLBACK_EXTENSIONS);
                     e.target.value = '';
                   }
                 }}

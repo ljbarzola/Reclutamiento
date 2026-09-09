@@ -2,12 +2,24 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 
+export interface CampoRequerido {
+  nombre: string;
+  tipo: string;
+  obligatorio: boolean;
+}
+
+export interface ArchivoRequerido {
+  nombre: string;
+  extensiones: string[];
+  obligatorio: boolean;
+}
+
 export interface JobVacancy {
   id: number;
   puesto: string;
   descripcion: string;
-  camposRequeridos: string[];
-  archivosRequeridos: string[];
+  camposRequeridos: CampoRequerido[];
+  archivosRequeridos: ArchivoRequerido[];
   createdAt: string;
 }
 
@@ -92,13 +104,26 @@ export class GoogleDriveService implements OnModuleInit {
     );
   }
 
-  private normalizeStringArray(arr: any[]): string[] {
-    if (!Array.isArray(arr)) return [];
-    return arr.map((item) => {
-      if (typeof item === 'string') return fixUtf8Encoding(item);
-      if (item && typeof item === 'object' && item.nombre) return fixUtf8Encoding(item.nombre);
-      return fixUtf8Encoding(String(item));
-    });
+  private normalizeCampoRequerido(item: any): CampoRequerido {
+    if (typeof item === 'string') {
+      return { nombre: fixUtf8Encoding(item), tipo: 'TEXTO', obligatorio: false };
+    }
+    return {
+      nombre: fixUtf8Encoding(item?.nombre || item?.name || ''),
+      tipo: item?.tipo || item?.type || 'TEXTO',
+      obligatorio: !!item?.obligatorio,
+    };
+  }
+
+  private normalizeArchivoRequerido(item: any): ArchivoRequerido {
+    if (typeof item === 'string') {
+      return { nombre: fixUtf8Encoding(item), extensiones: [], obligatorio: false };
+    }
+    return {
+      nombre: fixUtf8Encoding(item?.nombre || item?.name || ''),
+      extensiones: Array.isArray(item?.extensiones) ? item.extensiones : [],
+      obligatorio: !!item?.obligatorio,
+    };
   }
 
   private parseJobFromDrive(data: any): JobVacancy {
@@ -106,8 +131,12 @@ export class GoogleDriveService implements OnModuleInit {
       id: data.id,
       puesto: fixUtf8Encoding(data.puesto),
       descripcion: fixUtf8Encoding(data.descripcion || ''),
-      camposRequeridos: this.normalizeStringArray(data.camposRequeridos),
-      archivosRequeridos: this.normalizeStringArray(data.archivosRequeridos),
+      camposRequeridos: Array.isArray(data.camposRequeridos)
+        ? data.camposRequeridos.map((item: any) => this.normalizeCampoRequerido(item))
+        : [],
+      archivosRequeridos: Array.isArray(data.archivosRequeridos)
+        ? data.archivosRequeridos.map((item: any) => this.normalizeArchivoRequerido(item))
+        : [],
       createdAt: data.createdAt || '',
     };
   }
