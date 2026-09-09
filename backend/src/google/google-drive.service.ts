@@ -339,4 +339,8 @@ export class GoogleDriveService implements OnModuleInit {
       return null;
     }
   }
+
+  isConfigured(): boolean {
+    return !!this.drive && !!this.recruitmentFolderId;
+  }
 }

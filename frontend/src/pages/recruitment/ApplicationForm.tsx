@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,6 +20,19 @@ const applicationSchema = z.object({
 });
 
 type ApplicationFormData = z.infer<typeof applicationSchema>;
+
+export function getSubmitErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string | string[] } | undefined;
+    if (data?.message) {
+      return Array.isArray(data.message) ? data.message.join(', ') : data.message;
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Ocurrió un error al registrar la postulación.';
+}
 
 interface ApplicationFormProps {
   job: Job;
@@ -62,7 +76,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       setApplicationResult(result);
       setShowSuccess(true);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Ocurrió un error al registrar la postulación.');
+      alert(getSubmitErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }

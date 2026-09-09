@@ -25,7 +25,7 @@ export default function DocumentUploader({
     const allFiles: File[] = [];
     Object.entries(docMap).forEach(([docName, files]) => {
       files.forEach((file) => {
-        const cleanDocName = docName.replace(/[^a-zA-Z0-0áéíóúÁÉÍÓÚñÑ_ -]/g, '').trim();
+        const cleanDocName = docName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_ -]/g, '').trim();
         const renamedFile = new File([file], `${cleanDocName} - ${file.name}`, {
           type: file.type,
           lastModified: file.lastModified,
