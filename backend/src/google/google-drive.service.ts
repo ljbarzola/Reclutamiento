@@ -92,6 +92,26 @@ export class GoogleDriveService implements OnModuleInit {
     );
   }
 
+  private normalizeStringArray(arr: any[]): string[] {
+    if (!Array.isArray(arr)) return [];
+    return arr.map((item) => {
+      if (typeof item === 'string') return fixUtf8Encoding(item);
+      if (item && typeof item === 'object' && item.nombre) return fixUtf8Encoding(item.nombre);
+      return fixUtf8Encoding(String(item));
+    });
+  }
+
+  private parseJobFromDrive(data: any): JobVacancy {
+    return {
+      id: data.id,
+      puesto: fixUtf8Encoding(data.puesto),
+      descripcion: fixUtf8Encoding(data.descripcion || ''),
+      camposRequeridos: this.normalizeStringArray(data.camposRequeridos),
+      archivosRequeridos: this.normalizeStringArray(data.archivosRequeridos),
+      createdAt: data.createdAt || '',
+    };
+  }
+
   async getJobsFromDrive(): Promise<JobVacancy[]> {
     if (!this.drive) {
       this.logger.warn('Drive service not initialized');
@@ -115,14 +135,7 @@ export class GoogleDriveService implements OnModuleInit {
             const data = typeof content === 'string' ? JSON.parse(content) : content;
             if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
               seenIds.add(data.id);
-              jobs.push({
-                id: data.id,
-                puesto: fixUtf8Encoding(data.puesto),
-                descripcion: fixUtf8Encoding(data.descripcion),
-                camposRequeridos: (data.camposRequeridos || []).map((c: string) => fixUtf8Encoding(c)),
-                archivosRequeridos: (data.archivosRequeridos || []).map((a: string) => fixUtf8Encoding(a)),
-                createdAt: data.createdAt,
-              });
+              jobs.push(this.parseJobFromDrive(data));
             }
           }
         } catch (error) {
@@ -154,14 +167,7 @@ export class GoogleDriveService implements OnModuleInit {
                   const data = typeof content === 'string' ? JSON.parse(content) : content;
                   if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
                     seenIds.add(data.id);
-                    jobs.push({
-                      id: data.id,
-                      puesto: fixUtf8Encoding(data.puesto),
-                      descripcion: fixUtf8Encoding(data.descripcion),
-                      camposRequeridos: (data.camposRequeridos || []).map((c: string) => fixUtf8Encoding(c)),
-                      archivosRequeridos: (data.archivosRequeridos || []).map((a: string) => fixUtf8Encoding(a)),
-                      createdAt: data.createdAt,
-                    });
+                    jobs.push(this.parseJobFromDrive(data));
                   }
                 }
               } catch (error) {
