@@ -4,7 +4,6 @@ interface SuccessModalProps {
       candidateName: string;
       candidateEmail: string;
       jobTitle: string;
-      driveLink: string;
       status: string;
       createdAt?: string;
     };

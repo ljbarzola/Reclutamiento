@@ -9,6 +9,16 @@ import { GoogleModule } from '../../google/google.module';
 const uploadsDir = join(__dirname, '..', '..', 'uploads');
 mkdirSync(uploadsDir, { recursive: true });
 
+const ALLOWED_MIMES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+
 @Module({
   imports: [
     GoogleModule,
@@ -16,6 +26,13 @@ mkdirSync(uploadsDir, { recursive: true });
       dest: uploadsDir,
       limits: {
         fileSize: 50 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_MIMES.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`), false);
+        }
       },
     }),
   ],

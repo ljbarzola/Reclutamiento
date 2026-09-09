@@ -46,6 +46,7 @@ export class RecruitmentController {
         telefono: { type: 'string', example: '+593 99 123 4567' },
         email: { type: 'string', example: 'juan@email.com' },
         jobId: { type: 'string', example: '1' },
+        extraFields: { type: 'string', example: '{"Antecedentes Penales": "SI"}' },
         files: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
@@ -54,7 +55,7 @@ export class RecruitmentController {
       required: ['nombre', 'cedula', 'email', 'jobId'],
     },
   })
-  @UseInterceptors(FilesInterceptor('files', 10))
+  @UseInterceptors(FilesInterceptor('files', 20))
   async submitApplication(
     @Body() dto: SubmitApplicationDto,
     @UploadedFiles() files: Express.Multer.File[],

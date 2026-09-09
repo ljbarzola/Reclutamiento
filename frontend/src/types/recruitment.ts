@@ -8,10 +8,7 @@ export interface Job {
 }
 
 export interface CandidateData {
-  nombre: string;
-  cedula: string;
-  telefono: string;
-  email: string;
+  datosFormulario: Record<string, string>;
   puesto: string;
   puestoId: number;
   fechaPostulacion: string;
@@ -25,7 +22,6 @@ export interface SubmitApplicationResponse {
     candidateName: string;
     candidateEmail: string;
     jobTitle: string;
-    driveLink: string;
     status: string;
     createdAt: string;
   };

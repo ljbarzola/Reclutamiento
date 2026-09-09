@@ -37,61 +37,98 @@ export class RecruitmentService {
       throw new BadRequestException('Required documents must be uploaded');
     }
 
-    // 1. Get or create the job vacancy folder (e.g. "Guardia")
     const jobFolderId = await this.driveService.getOrCreateJobFolder(job.puesto);
     if (!jobFolderId) {
       throw new BadRequestException('Failed to resolve job folder in Google Drive');
     }
 
-    // 2. Create the candidate folder inside the job vacancy folder (e.g. "Juan Perez - 0987654321")
     const candidateName = fixUtf8Encoding(dto.nombre);
     const candidateCedula = fixUtf8Encoding(dto.cedula);
-    const candidateFolderId = await this.driveService.createCandidateFolder(
+    const candidateFolderId = await this.driveService.findOrCreateCandidateFolder(
       candidateName,
       candidateCedula,
       jobFolderId,
     );
 
     if (!candidateFolderId) {
-      throw new BadRequestException('Failed to create candidate folder in Google Drive');
+      throw new BadRequestException('Failed to resolve candidate folder in Google Drive');
     }
 
-    // 3. Upload all candidate files to candidate folder with clean UTF-8 names
     const uploadedFiles: { nombre: string; tipo: string }[] = [];
 
     if (files && files.length > 0) {
       for (const file of files) {
-        const cleanOriginalName = fixUtf8Encoding(file.originalname);
+        const safeOriginalName = fixUtf8Encoding(file.originalname).replace(/[\/\\:*?"<>|]/g, '_');
         const result = await this.driveService.uploadFile(
           file.path,
-          cleanOriginalName,
+          safeOriginalName,
           file.mimetype,
           candidateFolderId,
         );
         if (result) {
           uploadedFiles.push({
-            nombre: cleanOriginalName,
+            nombre: safeOriginalName,
             tipo: file.mimetype,
           });
         }
       }
     }
 
-    // 4. Create and upload candidato.json
+    const existingData = await this.driveService.readCandidateJson(candidateFolderId);
+
+    const datosFormulario: Record<string, string> = {
+      'Nombre completo': candidateName,
+      'Cédula': candidateCedula,
+      'Teléfono': fixUtf8Encoding(dto.telefono || ''),
+      'Email': fixUtf8Encoding(dto.email),
+    };
+
+    if (dto.extraFields) {
+      try {
+        const extras = JSON.parse(dto.extraFields);
+        Object.assign(datosFormulario, extras);
+      } catch {
+        this.logger.warn('Failed to parse extraFields JSON');
+      }
+    }
+
+    if (existingData?.datosFormulario) {
+      for (const [key, value] of Object.entries(existingData.datosFormulario)) {
+        if (!(key in datosFormulario)) {
+          datosFormulario[key] = value as string;
+        }
+      }
+    }
+
+    const existingFiles = existingData?.archivos || [];
+    const allFiles = [...existingFiles, ...uploadedFiles];
+
     const candidateData: CandidateData = {
-      nombre: candidateName,
-      cedula: candidateCedula,
-      telefono: fixUtf8Encoding(dto.telefono || ''),
-      email: fixUtf8Encoding(dto.email),
+      datosFormulario,
       puesto: fixUtf8Encoding(job.puesto),
       puestoId: job.id,
-      fechaPostulacion: new Date().toISOString(),
-      archivos: uploadedFiles,
+      fechaPostulacion: existingData?.fechaPostulacion || new Date().toISOString(),
+      archivos: allFiles,
     };
 
     await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
 
-    // 5. Clean up local temp files
+    this.cleanTempFiles(files);
+
+    return {
+      success: true,
+      message: 'Application submitted successfully',
+      application: {
+        candidateName,
+        candidateEmail: datosFormulario['Email'] || '',
+        jobTitle: candidateData.puesto,
+        status: 'PENDING',
+        createdAt: candidateData.fechaPostulacion,
+      },
+    };
+  }
+
+  private cleanTempFiles(files: Express.Multer.File[]) {
     if (files && files.length > 0) {
       for (const file of files) {
         try {
@@ -103,20 +140,5 @@ export class RecruitmentService {
         }
       }
     }
-
-    const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
-
-    return {
-      success: true,
-      message: 'Application submitted successfully',
-      application: {
-        candidateName,
-        candidateEmail: candidateData.email,
-        jobTitle: candidateData.puesto,
-        driveLink: folderLink,
-        status: 'PENDING',
-        createdAt: candidateData.fechaPostulacion,
-      },
-    };
   }
 }

@@ -7,6 +7,7 @@ interface DocumentUploaderProps {
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
 const MAX_FILES_PER_DOC = 2;
+const MAX_EXTRA_DOCS = 5;
 
 export default function DocumentUploader({
   requiredDocuments,
@@ -210,7 +211,7 @@ export default function DocumentUploader({
             <div className="slot-title-info">
               <span className="slot-name">Documentos Adicionales</span>
               <span className="slot-counter">
-                {(docMap['Documentos Adicionales'] || []).length} de 2 archivos
+                {(docMap['Documentos Adicionales'] || []).length} de {MAX_EXTRA_DOCS} archivos
               </span>
             </div>
             <span className="badge-optional">Opcional</span>
@@ -239,7 +240,7 @@ export default function DocumentUploader({
             </div>
           )}
 
-          {(docMap['Documentos Adicionales'] || []).length < 2 && (
+          {(docMap['Documentos Adicionales'] || []).length < MAX_EXTRA_DOCS && (
             <label className="slot-dropzone">
               <input
                 type="file"

@@ -8,13 +8,14 @@ import DocumentUploader from './DocumentUploader';
 import SuccessModal from './SuccessModal';
 
 const applicationSchema = z.object({
-  nombre: z.string().min(3, 'Ingrese sus nombres y apellidos completos'),
+  nombre: z.string().min(3, 'Ingrese sus nombres y apellidos completos').max(200),
   cedula: z
     .string()
     .min(10, 'Ingrese un número de cédula o identificación válido (mínimo 10 dígitos)')
+    .max(20)
     .regex(/^[0-9a-zA-Z-]+$/, 'Formato de identificación no válido'),
-  email: z.string().email('Ingrese una dirección de correo electrónico válida'),
-  telefono: z.string().min(7, 'Ingrese un número telefónico de contacto válido'),
+  email: z.string().email('Ingrese una dirección de correo electrónico válida').max(254),
+  telefono: z.string().min(7, 'Ingrese un número telefónico de contacto válido').max(15),
 });
 
 type ApplicationFormData = z.infer<typeof applicationSchema>;
@@ -93,6 +94,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           <input
             type="text"
             id="nombre"
+            maxLength={200}
             {...register('nombre')}
             className="form-input"
           />
@@ -106,6 +108,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           <input
             type="text"
             id="cedula"
+            maxLength={20}
             {...register('cedula')}
             className="form-input"
           />
@@ -119,6 +122,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           <input
             type="email"
             id="email"
+            maxLength={254}
             {...register('email')}
             className="form-input"
           />
@@ -132,6 +136,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           <input
             type="tel"
             id="telefono"
+            maxLength={15}
             {...register('telefono')}
             className="form-input"
           />

@@ -24,4 +24,9 @@ export class SubmitApplicationDto {
   @ApiProperty({ example: '1' })
   @IsString()
   jobId: string;
+
+  @ApiPropertyOptional({ example: '{"Antecedentes Penales": "SI"}' })
+  @IsOptional()
+  @IsString()
+  extraFields?: string;
 }

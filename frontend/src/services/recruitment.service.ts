@@ -5,10 +5,19 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const message = error.response?.data?.message || 'Error del servidor';
+    return Promise.reject(new Error(message));
+  },
+);
 
 export const recruitmentService = {
   async getActiveJobs(): Promise<Job[]> {

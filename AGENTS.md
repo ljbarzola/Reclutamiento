@@ -42,39 +42,106 @@ Este documento contiene todo el contexto, arquitectura, credenciales, reglas y p
    ```ts
    const job = typeof content === 'string' ? JSON.parse(content) : content;
    ```
-4. Las carpetas de candidatos se nombran con el formato: `[Nombre] - [Cédula]`.
-5. En la carpeta del candidato se sube un archivo `candidato.json` con la metadata de la postulación y los archivos adjuntos.
+4. Los nombres y textos que llegan por `multipart/form-data` pueden llegar mal codificados (Latin-1). Usar `fixUtf8Encoding` antes de persistir en Drive.
+5. **Estructura de carpetas (no colocar candidatos en la raíz):**
+   - Raíz Shared Drive
+     - JSON de vacantes (`*.json` con `mimeType='application/json'`)
+     - Carpeta por puesto: se busca o crea con el nombre exacto de `puesto` (`getOrCreateJobFolder`)
+       - Carpeta del candidato: `[APELLIDO NOMBRE] -[Cédula]`
+         - Archivos adjuntos (uno por archivo, renombrados con `{NombreRequerido} - {original}`)
+         - `candidato.json` — metadata de la postulación (estructura Option B con `datosFormulario`)
+
+### Schema de vacante (`JobVacancy`)
+Los JSON de vacantes en la raíz deben incluir:
+
+```ts
+{
+  id: number;
+  puesto: string;
+  descripcion: string;
+  camposRequeridos: string[];
+  archivosRequeridos: string[];
+  createdAt: string;
+}
+```
+
+### Schema de candidato (`candidato.json` — Option B)
+```ts
+{
+  datosFormulario: Record<string, string>;  // claves = camposRequeridos exactos
+  puesto: string;
+  puestoId: number;
+  fechaPostulacion: string;
+  archivos: { nombre: string; tipo: string }[];
+}
+```
+
+**Reglas importantes:**
+- Las claves de `datosFormulario` deben coincidir exactamente con `camposRequeridos` (mismo texto, mayúsculas/acentos).
+- Solo "Nombre completo", "Cédula", "Teléfono" y "Email" tienen reconocimiento flexible.
+- El sistema hace **merge** (lee antes de escribir): no sobreescribe datos que RRHH haya editado desde MejoraGemeseg.
+- Los archivos nuevos se **agregan** al array; no se borran documentos de postulaciones pasadas.
 
 ---
 
 ## 🔌 API & Backend
 - **Puerto local backend:** `3000`
 - **Prefijo global de API:** `/api`
+- **Swagger:** `http://localhost:3000/docs` (solo en desarrollo)
 - **Endpoints:**
   - `GET /api/health` — Health check de Cloud Run
-  - `GET /api/recruitment/jobs` — Retorna la lista de vacantes en JSON desde Google Drive
-  - `GET /api/recruitment/jobs/:id` — Retorna la vacante específica por ID
-  - `POST /api/recruitment/applications/submit` — Recibe `multipart/form-data` (campos de candidato + `files`) y crea carpeta + sube archivos a Google Drive.
+  - `GET /api/recruitment/jobs` — Lista de vacantes en JSON desde Google Drive
+  - `GET /api/recruitment/jobs/:id` — Vacante específica por ID
+  - `POST /api/recruitment/applications/submit` — `multipart/form-data` con campos de candidato + `files`. Campos adicionales:
+    - `extraFields`: JSON string con campos adicionales del formulario
+
+---
+
+## 📤 Flujo de Postulación
+
+- **individual (default):** el candidato sube 1–2 archivos por cada documento requerido → backend busca/crea carpeta del puesto → busca/crea carpeta del candidato → lee `candidato.json` existente si lo hay → sube archivos nuevos → crea/actualiza `candidato.json` con estructura Option B (merge de `datosFormulario` + adición de archivos).
 
 ---
 
 ## 💻 Frontend & UI/UX Guidelines
-- **Puerto local frontend:** `5173` (`http://localhost:5173`)
+- **Puerto local frontend:** `5174` (`http://localhost:5174`) — definido en `frontend/vite.config.ts`
 - **Favicon:** `/favicon/favicon.svg` y `/favicon/favicon-96x96.png`
 - **Logos disponibles en `/public`:**
   - `logo-gemeseg-bgblue.png` (usar sobre fondas oscuros/azules)
   - `logo-gemeseg-bgorange.png` (usar sobre fondos naranjas)
   - `logo-gemeseg-bgwhite.png` (usar sobre fondos claros/blancos)
   - `logo-gemeseg-bgwhite2.png` (variante clara)
+- **Componentes de carga:**
+  - Individual (`DocumentUploader.tsx`): 1–2 archivos por requerimiento, drag & drop, vista previa. Formatos: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.jpg`, `.jpeg`, `.png`. Máximo 15MB por archivo. Hasta 5 documentos adicionales.
 - **Criterios de Diseño:**
   - Diseño moderno, limpio, corporativo y altamente profesional.
   - Tarjetas de vacantes atractivas con badges de estado, resumen de requisitos, botón de postulación en naranja (`#EE3B1B`).
   - Modales fluidos con transiciones suaves, encabezados destacados, pestañas o secciones claras.
-  - Carga de documentos **estructurada por cada documento requerido** (permitiendo 1 o 2 archivos por cada requerimiento, con drag & drop individual y vista previa).
   - Omitir redundancia entre la información básica solicitada (Nombre, Cédula, Teléfono, Email) y la sección de "Información Requerida".
 
 ---
 
 ## 🚨 Reglas de Flujo y Trabajo
 - **NO hacer `git commit` ni `git push`** hasta que el usuario inspeccione y confirme explícitamente que está satisfecho con la interfaz y funcionalidad.
-- Mantener siempre ejecutándose el backend (`http://localhost:3000`) y frontend (`http://localhost:5173`) para verificación local rápida.
+- Mantener siempre ejecutándose el backend (`http://localhost:3000`) y frontend (`http://localhost:5174`) para verificación local rápida.
+
+---
+
+## 🔒 Seguridad
+
+### Headers de Seguridad
+- **Helmet.js** habilitado en `main.ts`
+- **Rate Limiting:** 20 peticiones por 60 segundos (global via `@nestjs/throttler`)
+
+### Validación de Archivos
+- **FileFilter en Multer:** Solo MIME types permitidos (PDF, JPEG, PNG, Word, Excel)
+- **Frontend:** Validación de extensiones + tamaño (15MB)
+
+### Información No Expuesta
+- `palabrasClave` de vacantes: NO se devuelven al frontend
+- `driveLink` de Google Drive: NO se devuelve al frontend
+- Email de Service Account: NO se expone en health endpoint
+- Swagger: solo en desarrollo
+
+### CORS
+- Orígenes: `localhost:3000`, `localhost:5173`, `reclutamiento.gemeseg.com`, dominios Firebase
