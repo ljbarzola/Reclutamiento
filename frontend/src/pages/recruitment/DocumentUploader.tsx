@@ -4,6 +4,7 @@ import { ArchivoRequerido } from '../../types/recruitment';
 interface DocumentUploaderProps {
   requiredDocuments: ArchivoRequerido[];
   onFilesChange: (files: File[], docMap: Record<string, File[]>) => void;
+  missingSlots?: string[];
 }
 
 const FALLBACK_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
@@ -19,6 +20,7 @@ const GENERIC_SLOT: ArchivoRequerido = {
 export default function DocumentUploader({
   requiredDocuments,
   onFilesChange,
+  missingSlots = [],
 }: DocumentUploaderProps) {
   // Map of docName -> File[]
   const [docMap, setDocMap] = useState<Record<string, File[]>>({});
@@ -125,7 +127,7 @@ export default function DocumentUploader({
           return (
             <div
               key={idx}
-              className={`doc-slot-card ${isFull ? 'slot-full' : ''} ${isDragging ? 'slot-dragging' : ''}`}
+              className={`doc-slot-card ${isFull ? 'slot-full' : ''} ${isDragging ? 'slot-dragging' : ''} ${missingSlots.includes(slotName) ? 'doc-slot-missing' : ''}`}
               onDragEnter={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

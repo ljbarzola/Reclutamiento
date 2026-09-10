@@ -5,6 +5,9 @@ import { recruitmentService } from '../../services/recruitment.service';
 import DocumentUploader from './DocumentUploader';
 import SuccessModal from './SuccessModal';
 
+// TODO (futuro): Agregar aria-describedby a cada input apuntando a su mensaje de error
+// para mejorar accesibilidad con lectores de pantalla.
+
 interface ApplicationFormProps {
   job: Job;
   onSuccess: () => void;
@@ -104,19 +107,41 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [applicationResult, setApplicationResult] = useState<any>(null);
+  const [missingDocSlots, setMissingDocSlots] = useState<string[]>([]);
 
   const handleFieldChange = (nombre: string, value: string) => {
     setValues((prev) => ({ ...prev, [nombre]: value }));
+    if (fieldErrors[nombre]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[nombre];
+        return next;
+      });
+    }
+  };
+
+  const handleFieldBlur = (campo: CampoRequerido) => {
+    const error = validateCampoValor(campo, values[campo.nombre] || '');
+    setFieldErrors((prev) => {
+      if (error) return { ...prev, [campo.nombre]: error };
+      const next = { ...prev };
+      delete next[campo.nombre];
+      return next;
+    });
   };
 
   const handleFilesChange = (allFiles: File[], newDocMap: Record<string, File[]>) => {
     setFiles(allFiles);
     setDocMap(newDocMap);
+    setMissingDocSlots((prev) =>
+      prev.filter((name) => (newDocMap[name]?.length || 0) === 0),
+    );
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
+    setMissingDocSlots([]);
 
     const errors: Record<string, string> = {};
     for (const campo of campos) {
@@ -124,13 +149,23 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       if (error) errors[campo.nombre] = error;
     }
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+
+    if (Object.keys(errors).length > 0) {
+      const firstErrorKey = Object.keys(errors)[0];
+      const el = document.getElementById(`campo-${firstErrorKey}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+      return;
+    }
 
     const requiredDocs = job.archivosRequeridos || [];
     const missingDocs = requiredDocs.filter(
       (doc) => doc.obligatorio && (docMap[doc.nombre]?.length || 0) === 0,
     );
     if (missingDocs.length > 0) {
+      setMissingDocSlots(missingDocs.map((d) => d.nombre));
       setSubmitError(
         `Por favor adjunte los siguientes documentos requeridos: ${missingDocs.map((d) => d.nombre).join(', ')}.`,
       );
@@ -200,12 +235,13 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
               </label>
               <input
                 id={`campo-${campo.nombre}`}
-                className="form-input"
+                className={`form-input ${fieldErrors[campo.nombre] ? 'input-error' : ''}`}
                 type={inputProps.type}
                 inputMode={inputProps.inputMode}
                 pattern={inputProps.pattern}
                 value={values[campo.nombre] || ''}
                 onChange={(e) => handleFieldChange(campo.nombre, e.target.value)}
+                onBlur={() => handleFieldBlur(campo)}
               />
               {fieldErrors[campo.nombre] && (
                 <span className="error-text">{fieldErrors[campo.nombre]}</span>
@@ -216,7 +252,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       </div>
 
       {/* Document Uploader */}
-      <DocumentUploader requiredDocuments={job.archivosRequeridos || []} onFilesChange={handleFilesChange} />
+      <DocumentUploader requiredDocuments={job.archivosRequeridos || []} onFilesChange={handleFilesChange} missingSlots={missingDocSlots} />
 
       {submitError && <span className="error-text">{submitError}</span>}
 
@@ -226,10 +262,10 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           {isSubmitting ? (
             <>
               <span className="spinner-small"></span>
-              Procesando envío de datos...
+              Enviando...
             </>
           ) : (
-            'Enviar Postulación Oficial'
+            'Enviar Postulación'
           )}
         </button>
       </div>

@@ -759,6 +759,16 @@ body {
   box-shadow: 0 0 0 3px rgba(18, 55, 95, 0.12);
 }
 
+.form-input.input-error {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.form-input.input-error:focus {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
 .error-text {
   font-size: 0.775rem;
   color: #DC2626;
@@ -810,6 +820,17 @@ body {
 
 .doc-slot-card:hover {
   border-color: var(--azul-claro);
+}
+
+.doc-slot-card.doc-slot-missing {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  animation: pulse-red-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-red-border {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.06); }
 }
 
 .doc-slot-card.slot-dragging {
