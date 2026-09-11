@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import * as fs from 'fs';
 import { RecruitmentService } from './recruitment.service';
 import { GoogleDriveService } from '../../google/google-drive.service';
@@ -109,6 +109,28 @@ describe('RecruitmentService', () => {
       driveService.getJobByIdFromDrive.mockResolvedValue(job);
       driveService.getOrCreateJobFolder.mockResolvedValue(null);
       await expect(service.submitApplication(dto, [file])).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws instead of silently continuing when a file fails to upload to Drive', async () => {
+      driveService.getJobByIdFromDrive.mockResolvedValue(job);
+      driveService.getOrCreateJobFolder.mockResolvedValue('job-folder-id');
+      driveService.findOrCreateCandidateFolder.mockResolvedValue('candidate-folder-id');
+      driveService.uploadFile.mockResolvedValue(null);
+
+      await expect(service.submitApplication(dto, [file])).rejects.toThrow(InternalServerErrorException);
+      expect(driveService.uploadCandidateJson).not.toHaveBeenCalled();
+    });
+
+    it('throws instead of reporting success when candidato.json fails to save', async () => {
+      driveService.getJobByIdFromDrive.mockResolvedValue(job);
+      driveService.getOrCreateJobFolder.mockResolvedValue('job-folder-id');
+      driveService.findOrCreateCandidateFolder.mockResolvedValue('candidate-folder-id');
+      driveService.readCandidateJson.mockResolvedValue(null);
+      driveService.uploadFile.mockResolvedValue({ fileId: 'file-1', link: 'https://drive/file-1' });
+      driveService.uploadCandidateJson.mockResolvedValue(false);
+
+      await expect(service.submitApplication(dto, [file])).rejects.toThrow(InternalServerErrorException);
+      expect(emailService.sendCandidateNotification).not.toHaveBeenCalled();
     });
 
     it('runs the full happy path in order and notifies by email', async () => {

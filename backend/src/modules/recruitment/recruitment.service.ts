@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import {
   GoogleDriveService,
   CandidateData,
@@ -81,6 +86,10 @@ export class RecruitmentService {
               nombre: safeOriginalName,
               tipo: file.mimetype,
             });
+          } else {
+            throw new InternalServerErrorException(
+              'No se pudo subir uno de los documentos adjuntos. Por favor intente su postulación nuevamente.',
+            );
           }
         }
       }
@@ -122,7 +131,12 @@ export class RecruitmentService {
         archivos: allFiles,
       };
 
-      await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
+      const jsonSaved = await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
+      if (!jsonSaved) {
+        throw new InternalServerErrorException(
+          'No se pudo guardar la información de la postulación. Por favor intente nuevamente.',
+        );
+      }
 
       const folderLink = `https://drive.google.com/drive/folders/${candidateFolderId}`;
       await this.emailService.sendCandidateNotification(candidateData, folderLink);
