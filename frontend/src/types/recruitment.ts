@@ -17,6 +17,7 @@ export interface Job {
   camposRequeridos: CampoRequerido[];
   archivosRequeridos: ArchivoRequerido[];
   createdAt: string;
+  abierta: boolean;
 }
 
 export interface CandidateData {

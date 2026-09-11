@@ -151,7 +151,7 @@ export class RecruitmentService {
       (req) =>
         req.obligatorio &&
         !files.some((f) =>
-          f.originalname.toLowerCase().startsWith(req.nombre.toLowerCase()),
+          fixUtf8Encoding(f.originalname).toLowerCase().startsWith(req.nombre.toLowerCase()),
         ),
     );
     if (missing.length > 0) {

@@ -19,6 +19,7 @@ describe('RecruitmentService', () => {
     camposRequeridos: [],
     archivosRequeridos: [{ nombre: 'Cédula', extensiones: ['pdf'], obligatorio: true }],
     createdAt: '2026-01-01T00:00:00.000Z',
+    abierta: true,
   };
 
   beforeEach(async () => {

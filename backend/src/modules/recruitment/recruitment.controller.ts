@@ -36,7 +36,7 @@ export class RecruitmentController {
   }
 
   @Post('applications/submit')
-  @Throttle({ default: { limit: 3, ttl: 600_000 } })
+  @Throttle({ default: { limit: 8, ttl: 600_000 } })
   @ApiOperation({ summary: 'Enviar aplicación con documentos' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

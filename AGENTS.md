@@ -62,8 +62,11 @@ Los JSON de vacantes en la raíz deben incluir:
   camposRequeridos: string[];
   archivosRequeridos: string[];
   createdAt: string;
+  abierta: boolean;  // false = vacante cerrada, no se lista ni es accesible por ID
 }
 ```
+
+Si el JSON no incluye `abierta`, se trata como `true` (abierta) por compatibilidad con vacantes creadas antes de este campo.
 
 ### Schema de candidato (`candidato.json` — Option B)
 ```ts

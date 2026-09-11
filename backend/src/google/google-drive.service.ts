@@ -21,6 +21,7 @@ export interface JobVacancy {
   camposRequeridos: CampoRequerido[];
   archivosRequeridos: ArchivoRequerido[];
   createdAt: string;
+  abierta: boolean;
 }
 
 export interface CandidateData {
@@ -138,6 +139,9 @@ export class GoogleDriveService implements OnModuleInit {
         ? data.archivosRequeridos.map((item: any) => this.normalizeArchivoRequerido(item))
         : [],
       createdAt: data.createdAt || '',
+      // Vacantes sin el campo `abierta` en su JSON (postulaciones creadas antes de
+      // introducir este campo) se tratan como abiertas para no ocultarlas retroactivamente.
+      abierta: data.abierta !== false,
     };
   }
 
@@ -209,7 +213,9 @@ export class GoogleDriveService implements OnModuleInit {
         }
       }
 
-      return jobs;
+      // Las vacantes con `abierta: false` no se listan ni son accesibles por ID
+      // (getJobByIdFromDrive reutiliza esta lista), efectivamente cerrando la convocatoria.
+      return jobs.filter((job) => job.abierta);
     } catch (error) {
       this.logger.error('Failed to list jobs from Drive', error);
       return [];
