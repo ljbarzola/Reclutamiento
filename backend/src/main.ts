@@ -15,6 +15,7 @@ async function bootstrap() {
       const allowedOrigins = [
         'http://localhost:3000',
         'http://localhost:5173',
+        'http://localhost:5174',
         'https://reclutamiento.gemeseg.com',
         'https://reclutamiento-505320.web.app',
         'https://reclutamiento-505320.firebaseapp.com',

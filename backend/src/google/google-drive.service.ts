@@ -362,7 +362,6 @@ export class GoogleDriveService implements OnModuleInit {
       };
 
       const jsonContent = JSON.stringify(cleanData, null, 2);
-      const buffer = Buffer.from(jsonContent, 'utf-8');
 
       const searchResponse = await this.drive.files.list({
         q: `'${folderId}' in parents and name = 'candidato.json' and mimeType = 'application/json' and trashed = false`,
@@ -377,7 +376,7 @@ export class GoogleDriveService implements OnModuleInit {
           fileId: existingFiles[0].id,
           media: {
             mimeType: 'application/json',
-            body: buffer,
+            body: jsonContent,
           },
           ...SHARED_DRIVE_OPTIONS,
         });
@@ -389,7 +388,7 @@ export class GoogleDriveService implements OnModuleInit {
           },
           media: {
             mimeType: 'application/json',
-            body: buffer,
+            body: jsonContent,
           },
           fields: 'id',
           ...SHARED_DRIVE_OPTIONS,
