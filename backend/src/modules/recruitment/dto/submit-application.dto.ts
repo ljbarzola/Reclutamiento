@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsIn, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SubmitApplicationDto {
@@ -29,4 +29,9 @@ export class SubmitApplicationDto {
   @IsOptional()
   @IsString()
   extraFields?: string;
+
+  @ApiPropertyOptional({ example: 'individual', enum: ['individual', 'archivo_unico'] })
+  @IsOptional()
+  @IsIn(['individual', 'archivo_unico'])
+  modoSubida?: string;
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Job, CampoRequerido } from '../../types/recruitment';
 import { recruitmentService } from '../../services/recruitment.service';
-import DocumentUploader from './DocumentUploader';
+import DocumentUploader, { UploadMode } from './DocumentUploader';
 import SuccessModal from './SuccessModal';
 
 // TODO (futuro): Agregar aria-describedby a cada input apuntando a su mensaje de error
@@ -37,6 +37,8 @@ function inputPropsForTipo(tipo: string): {
   type: string;
   inputMode?: 'numeric';
   pattern?: string;
+  placeholder?: string;
+  maxLength?: number;
 } {
   switch (tipo) {
     case 'NUMERICO':
@@ -46,12 +48,23 @@ function inputPropsForTipo(tipo: string): {
     case 'TELEFONO':
       return { type: 'tel' };
     case 'FECHA':
-      return { type: 'date' };
+      return { type: 'text', inputMode: 'numeric', placeholder: 'dd/mm/aaaa', maxLength: 10 };
     case 'ALFANUMERICO':
     case 'TEXTO':
     default:
       return { type: 'text' };
   }
+}
+
+// Aplica una máscara dd/mm/aaaa mientras el usuario escribe, sin depender
+// del selector nativo type="date" (su formato varía según el navegador/SO
+// del candidato; en Ecuador el formato siempre debe ser día/mes/año).
+function formatFechaInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+  return [day, month, year].filter(Boolean).join('/');
 }
 
 // Reglas permisivas por tipo: solo buscan atajar un valor que claramente no
@@ -71,8 +84,18 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
         : `${campo.nombre} debe ser un correo electrónico válido.`;
     case 'TELEFONO':
       return /^[\d+\-\s()]+$/.test(value) ? null : `${campo.nombre} debe ser un teléfono válido.`;
-    case 'FECHA':
-      return !isNaN(Date.parse(value)) ? null : `${campo.nombre} debe ser una fecha válida.`;
+    case 'FECHA': {
+      const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+      if (!match) return `${campo.nombre} debe tener el formato dd/mm/aaaa.`;
+      const [, dd, mm, yyyy] = match;
+      const day = parseInt(dd, 10);
+      const month = parseInt(mm, 10);
+      const year = parseInt(yyyy, 10);
+      const parsed = new Date(year, month - 1, day);
+      const isRealDate =
+        parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+      return isRealDate ? null : `${campo.nombre} debe ser una fecha válida.`;
+    }
     case 'ALFANUMERICO':
       return /^[\p{L}\p{N}\s'.-]+$/u.test(value)
         ? null
@@ -103,6 +126,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<File[]>([]);
   const [docMap, setDocMap] = useState<Record<string, File[]>>({});
+  const [modoSubida, setModoSubida] = useState<UploadMode>('individual');
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -130,9 +154,14 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
     });
   };
 
-  const handleFilesChange = (allFiles: File[], newDocMap: Record<string, File[]>) => {
+  const handleFilesChange = (
+    allFiles: File[],
+    newDocMap: Record<string, File[]>,
+    modo: UploadMode,
+  ) => {
     setFiles(allFiles);
     setDocMap(newDocMap);
+    setModoSubida(modo);
     setMissingDocSlots((prev) =>
       prev.filter((name) => (newDocMap[name]?.length || 0) === 0),
     );
@@ -160,16 +189,24 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       return;
     }
 
-    const requiredDocs = job.archivosRequeridos || [];
-    const missingDocs = requiredDocs.filter(
-      (doc) => doc.obligatorio && (docMap[doc.nombre]?.length || 0) === 0,
-    );
-    if (missingDocs.length > 0) {
-      setMissingDocSlots(missingDocs.map((d) => d.nombre));
-      setSubmitError(
-        `Por favor adjunte los siguientes documentos requeridos: ${missingDocs.map((d) => d.nombre).join(', ')}.`,
+    if (modoSubida === 'archivo_unico') {
+      if ((docMap['Archivo Completo']?.length || 0) === 0) {
+        setMissingDocSlots(['Archivo Completo']);
+        setSubmitError('Por favor adjunte el archivo con su información para continuar.');
+        return;
+      }
+    } else {
+      const requiredDocs = job.archivosRequeridos || [];
+      const missingDocs = requiredDocs.filter(
+        (doc) => doc.obligatorio && (docMap[doc.nombre]?.length || 0) === 0,
       );
-      return;
+      if (missingDocs.length > 0) {
+        setMissingDocSlots(missingDocs.map((d) => d.nombre));
+        setSubmitError(
+          `Por favor adjunte los siguientes documentos requeridos: ${missingDocs.map((d) => d.nombre).join(', ')}.`,
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -192,6 +229,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       formData.append('email', standard.email);
       formData.append('telefono', standard.telefono);
       formData.append('jobId', job.id.toString());
+      formData.append('modoSubida', modoSubida);
       if (Object.keys(extras).length > 0) {
         formData.append('extraFields', JSON.stringify(extras));
       }
@@ -239,8 +277,15 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
                 type={inputProps.type}
                 inputMode={inputProps.inputMode}
                 pattern={inputProps.pattern}
+                placeholder={inputProps.placeholder}
+                maxLength={inputProps.maxLength}
                 value={values[campo.nombre] || ''}
-                onChange={(e) => handleFieldChange(campo.nombre, e.target.value)}
+                onChange={(e) =>
+                  handleFieldChange(
+                    campo.nombre,
+                    campo.tipo === 'FECHA' ? formatFechaInput(e.target.value) : e.target.value,
+                  )
+                }
                 onBlur={() => handleFieldBlur(campo)}
               />
               {fieldErrors[campo.nombre] && (

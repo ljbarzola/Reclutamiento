@@ -30,6 +30,7 @@ export interface CandidateData {
   puestoId: number;
   fechaPostulacion: string;
   archivos: { nombre: string; tipo: string }[];
+  modoSubida: string;
 }
 
 const SHARED_DRIVE_OPTIONS = {
@@ -359,6 +360,7 @@ export class GoogleDriveService implements OnModuleInit {
           nombre: fixUtf8Encoding(a.nombre),
           tipo: a.tipo,
         })),
+        modoSubida: data.modoSubida || 'individual',
       };
 
       const jsonContent = JSON.stringify(cleanData, null, 2);

@@ -49,9 +49,14 @@ export class RecruitmentService {
       }
 
       const job = await this.getJobById(jobId);
+      const modoSubida = dto.modoSubida || 'individual';
 
       this.validateFiles(files);
-      this.validateRequiredFiles(job.archivosRequeridos || [], files || []);
+      if (modoSubida === 'archivo_unico') {
+        this.validateSingleFileMode(files || []);
+      } else {
+        this.validateRequiredFiles(job.archivosRequeridos || [], files || []);
+      }
 
       const jobFolderId = await this.driveService.getOrCreateJobFolder(job.puesto);
       if (!jobFolderId) {
@@ -129,6 +134,7 @@ export class RecruitmentService {
         puestoId: job.id,
         fechaPostulacion: existingData?.fechaPostulacion || new Date().toISOString(),
         archivos: allFiles,
+        modoSubida,
       };
 
       const jsonSaved = await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);
@@ -172,6 +178,12 @@ export class RecruitmentService {
       throw new BadRequestException(
         `Faltan documentos requeridos: ${missing.map((m) => m.nombre).join(', ')}`,
       );
+    }
+  }
+
+  private validateSingleFileMode(files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Debe adjuntar el archivo con su información para continuar.');
     }
   }
 
