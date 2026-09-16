@@ -1,5 +1,12 @@
 import { IsString, IsEmail, IsOptional, IsIn, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+// El formulario público siempre manda este campo en el FormData aunque la
+// vacante no lo pida (queda como ''); @IsOptional() de class-validator solo
+// omite la validación en null/undefined, no en '', así que sin este Transform
+// un string vacío seguiría fallando @IsEmail().
+const emptyToUndefined = ({ value }: { value: string }) => (value === '' ? undefined : value);
 
 export class SubmitApplicationDto {
   @ApiProperty({ example: 'Juan Pérez' })
@@ -18,6 +25,7 @@ export class SubmitApplicationDto {
   telefono?: string;
 
   @ApiPropertyOptional({ example: 'juan.perez@email.com' })
+  @Transform(emptyToUndefined)
   @IsOptional()
   @IsEmail()
   email?: string;
