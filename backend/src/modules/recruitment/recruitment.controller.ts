@@ -54,7 +54,7 @@ export class RecruitmentController {
           items: { type: 'string', format: 'binary' },
         },
       },
-      required: ['nombre', 'cedula', 'email', 'jobId'],
+      required: ['nombre', 'cedula', 'jobId'],
     },
   })
   @UseInterceptors(FilesInterceptor('files', 20))

@@ -17,9 +17,10 @@ export class SubmitApplicationDto {
   @IsString()
   telefono?: string;
 
-  @ApiProperty({ example: 'juan.perez@email.com' })
+  @ApiPropertyOptional({ example: 'juan.perez@email.com' })
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @ApiProperty({ example: '1' })
   @IsString()
