@@ -285,7 +285,7 @@ export class GoogleDriveService implements OnModuleInit {
 
     const cleanName = fixUtf8Encoding(candidateName).trim();
     const cleanCedula = fixUtf8Encoding(cedula).trim();
-    const folderName = `${cleanName} -${cleanCedula}`;
+    const folderName = `${cleanName} - ${cleanCedula}`;
 
     try {
       const safeFolderName = folderName.replace(/'/g, "\\'");

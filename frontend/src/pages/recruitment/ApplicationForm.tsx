@@ -13,16 +13,22 @@ interface ApplicationFormProps {
   onSuccess: () => void;
 }
 
-type StandardKey = 'nombre' | 'cedula' | 'email' | 'telefono';
+type StandardKey = 'nombre' | 'cedula' | 'email' | 'telefono' | 'nombres' | 'apellidos';
 
 // Nombres de campo que, sin importar cómo los haya llamado RRHH en el JSON,
-// corresponden a los 4 parámetros fijos que exige el backend (para nombrar
-// la carpeta de Drive y enviar la notificación por correo).
+// corresponden a los parámetros que exige el backend (para nombrar la
+// carpeta de Drive y enviar la notificación por correo) o que el propio
+// formulario necesita reconocer para su lógica especial (Fase 6: Nombres y
+// Apellidos por separado, ver combinación en onSubmit más abajo). "nombre"
+// sigue reconociendo "Nombre completo" tal cual, para no romper vacantes
+// viejas que aún usan ese campo único.
 const STANDARD_FIELD_MATCHERS: Record<StandardKey, string[]> = {
   nombre: ['nombre', 'nombre completo'],
   cedula: ['cédula', 'cedula'],
   email: ['email', 'correo', 'correo electrónico', 'correo electronico'],
   telefono: ['teléfono', 'telefono'],
+  nombres: ['nombres'],
+  apellidos: ['apellidos'],
 };
 
 function matchStandardKey(nombre: string): StandardKey | null {
@@ -70,10 +76,32 @@ function formatFechaInput(raw: string): string {
 // Reglas permisivas por tipo: solo buscan atajar un valor que claramente no
 // calza con el tipo declarado (letras en un campo NUMERICO, un correo sin
 // arroba, etc.), sin restringir de más nombres/direcciones reales.
+// Textos de ayuda bajo el input, hardcodeados para estos 3 campos puntuales
+// (por decisión del usuario: no se justifica un mecanismo genérico de
+// "descripción por campo" solo para esto). Se matchea igual que
+// matchStandardKey, así que reconoce el campo sin importar cómo RRHH haya
+// escrito el label ("Apellidos", "apellidos", etc.).
+function helpTextForCampo(campo: CampoRequerido): string | null {
+  switch (matchStandardKey(campo.nombre)) {
+    case 'nombres':
+      return 'Ingresa tu(s) nombre(s), tal como figuran en tu cédula.';
+    case 'apellidos':
+      return 'Ingresa tus dos apellidos, tal como figuran en tu cédula.';
+    case 'cedula':
+      return 'Ingresa los 10 dígitos de tu cédula, sin espacios ni guiones.';
+    default:
+      return null;
+  }
+}
+
 function validateCampoValor(campo: CampoRequerido, valor: string): string | null {
   const value = valor.trim();
   if (!value) {
     return campo.obligatorio ? `${campo.nombre} es un campo obligatorio.` : null;
+  }
+  if (matchStandardKey(campo.nombre) === 'apellidos') {
+    const words = value.split(/\s+/).filter(Boolean);
+    if (words.length < 2) return 'Ingresa tus dos apellidos.';
   }
   switch (campo.tipo) {
     case 'NUMERICO':
@@ -211,7 +239,14 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
 
     setIsSubmitting(true);
     try {
-      const standard: Record<StandardKey, string> = { nombre: '', cedula: '', email: '', telefono: '' };
+      const standard: Record<StandardKey, string> = {
+        nombre: '',
+        cedula: '',
+        email: '',
+        telefono: '',
+        nombres: '',
+        apellidos: '',
+      };
       const extras: Record<string, string> = {};
       for (const campo of campos) {
         const value = (values[campo.nombre] || '').trim();
@@ -221,6 +256,20 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
         } else {
           extras[campo.nombre] = value;
         }
+      }
+
+      // Vacante nueva (Fase 6): si el candidato llenó Nombres Y Apellidos por
+      // separado, se combinan en "nombre" (el único campo que el backend
+      // espera) y además se mandan por separado en extraFields, bajo sus
+      // etiquetas exactas, para que MejoraGemeseg pueda mostrarlos en cajas
+      // independientes en el editor de datos del postulante. Si la vacante
+      // solo tiene "Nombre completo" (vacante vieja), standard.nombres/
+      // apellidos quedan vacíos y este bloque no hace nada — comportamiento
+      // idéntico al de hoy.
+      if (standard.nombres && standard.apellidos) {
+        standard.nombre = `${standard.apellidos} ${standard.nombres}`.trim();
+        extras['Nombres'] = standard.nombres;
+        extras['Apellidos'] = standard.apellidos;
       }
 
       const formData = new FormData();
@@ -288,8 +337,12 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
                 }
                 onBlur={() => handleFieldBlur(campo)}
               />
-              {fieldErrors[campo.nombre] && (
+              {fieldErrors[campo.nombre] ? (
                 <span className="error-text">{fieldErrors[campo.nombre]}</span>
+              ) : (
+                helpTextForCampo(campo) && (
+                  <span className="field-help">{helpTextForCampo(campo)}</span>
+                )
               )}
             </div>
           );

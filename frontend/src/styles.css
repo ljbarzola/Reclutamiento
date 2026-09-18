@@ -775,6 +775,12 @@ body {
   font-weight: 500;
 }
 
+.field-help {
+  font-size: 0.775rem;
+  color: #6B7280;
+  font-weight: 400;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    DOCUMENT UPLOADER ESTRUCTURADO (SLOTS)
    ═══════════════════════════════════════════════════════════════ */
