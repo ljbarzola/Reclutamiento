@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { Job, CampoRequerido } from '../../types/recruitment';
 import { recruitmentService } from '../../services/recruitment.service';
@@ -55,7 +56,6 @@ function inputPropsForTipo(tipo: string): {
       return { type: 'tel' };
     case 'FECHA':
       return { type: 'text', inputMode: 'numeric', placeholder: 'dd/mm/aaaa', maxLength: 10 };
-    case 'ALFANUMERICO':
     case 'TEXTO':
     default:
       return { type: 'text' };
@@ -124,13 +124,11 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
         parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
       return isRealDate ? null : `${campo.nombre} debe ser una fecha válida.`;
     }
-    case 'ALFANUMERICO':
+    case 'TEXTO':
+    default:
       return /^[\p{L}\p{N}\s'.-]+$/u.test(value)
         ? null
         : `${campo.nombre} contiene caracteres no permitidos.`;
-    case 'TEXTO':
-    default:
-      return /^[\p{L}\s'.-]+$/u.test(value) ? null : `${campo.nombre} solo debe contener letras.`;
   }
 }
 
@@ -160,6 +158,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
   const [showSuccess, setShowSuccess] = useState(false);
   const [applicationResult, setApplicationResult] = useState<any>(null);
   const [missingDocSlots, setMissingDocSlots] = useState<string[]>([]);
+  const [aceptaTratamientoDatos, setAceptaTratamientoDatos] = useState(false);
 
   const handleFieldChange = (nombre: string, value: string) => {
     setValues((prev) => ({ ...prev, [nombre]: value }));
@@ -199,6 +198,11 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
     e.preventDefault();
     setSubmitError('');
     setMissingDocSlots([]);
+
+    if (!aceptaTratamientoDatos) {
+      setSubmitError('Debe aceptar la Política de Privacidad para continuar.');
+      return;
+    }
 
     const errors: Record<string, string> = {};
     for (const campo of campos) {
@@ -279,6 +283,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       formData.append('telefono', standard.telefono);
       formData.append('jobId', job.id.toString());
       formData.append('modoSubida', modoSubida);
+      formData.append('aceptaTratamientoDatos', String(aceptaTratamientoDatos));
       if (Object.keys(extras).length > 0) {
         formData.append('extraFields', JSON.stringify(extras));
       }
@@ -352,11 +357,33 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       {/* Document Uploader */}
       <DocumentUploader requiredDocuments={job.archivosRequeridos || []} onFilesChange={handleFilesChange} missingSlots={missingDocSlots} />
 
+      <div className="consent-checkbox-row">
+        <input
+          id="acepta-tratamiento-datos"
+          type="checkbox"
+          checked={aceptaTratamientoDatos}
+          onChange={(e) => setAceptaTratamientoDatos(e.target.checked)}
+        />
+        <label htmlFor="acepta-tratamiento-datos">
+          He leído la{' '}
+          <Link to="/privacidad" target="_blank" rel="noopener noreferrer">
+            Política de Privacidad
+          </Link>{' '}
+          y acepto que Gemeseg Cía. Ltda. trate mis datos y documentos para evaluar esta postulación,
+          los conserve para ese proceso y, si Recursos Humanos lo usa, un sistema de inteligencia
+          artificial solo proponga cómo clasificar esos documentos. Puedo revocar este consentimiento.
+        </label>
+      </div>
+
       {submitError && <span className="error-text">{submitError}</span>}
 
       {/* Submit Button */}
       <div className="form-actions">
-        <button type="submit" className="submit-button" disabled={isSubmitting}>
+        <button
+          type="submit"
+          className="submit-button"
+          disabled={isSubmitting || !aceptaTratamientoDatos}
+        >
           {isSubmitting ? (
             <>
               <span className="spinner-small"></span>

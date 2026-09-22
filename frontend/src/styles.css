@@ -1292,6 +1292,107 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   POLÍTICA DE PRIVACIDAD
+   ═══════════════════════════════════════════════════════════════ */
+
+.privacy-notice-card {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.privacy-updated {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.privacy-heading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.privacy-notice-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 4px;
+}
+
+.privacy-list {
+  margin: 4px 0 8px 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.privacy-list li {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.privacy-disclaimer {
+  margin-top: 24px;
+  padding: 14px 16px;
+  background: #FFF7ED;
+  border: 1px solid #FFEDD5;
+  border-radius: var(--radius-md);
+  font-size: 0.825rem !important;
+  color: var(--text-secondary) !important;
+  font-style: italic;
+}
+
+.privacy-back-link {
+  align-self: flex-start;
+  margin-top: 24px;
+  text-decoration: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CASILLA DE CONSENTIMIENTO
+   ═══════════════════════════════════════════════════════════════ */
+
+.consent-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--gris-fondo);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.consent-checkbox-row input[type='checkbox'] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--azul-claro);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.consent-checkbox-row label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.consent-checkbox-row a {
+  color: var(--azul-claro);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    RESPONSIVE DESIGN
    ═══════════════════════════════════════════════════════════════ */
 

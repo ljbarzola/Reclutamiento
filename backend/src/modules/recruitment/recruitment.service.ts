@@ -135,6 +135,8 @@ export class RecruitmentService {
         fechaPostulacion: existingData?.fechaPostulacion || new Date().toISOString(),
         archivos: allFiles,
         modoSubida,
+        aceptaTratamientoDatos: true,
+        fechaAceptacionTratamiento: existingData?.fechaAceptacionTratamiento || new Date().toISOString(),
       };
 
       const jsonSaved = await this.driveService.uploadCandidateJson(candidateFolderId, candidateData);

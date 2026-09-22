@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsIn, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsIn, MinLength, Equals } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -7,6 +7,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 // omite la validación en null/undefined, no en '', así que sin este Transform
 // un string vacío seguiría fallando @IsEmail().
 const emptyToUndefined = ({ value }: { value: string }) => (value === '' ? undefined : value);
+
+// FormData solo manda strings, así que el checkbox llega como 'true'/'false'
+// en vez de un boolean real; se normaliza antes de exigir @Equals(true).
+const stringToBoolean = ({ value }: { value: unknown }) => value === 'true' || value === true;
 
 export class SubmitApplicationDto {
   @ApiProperty({ example: 'Juan Pérez' })
@@ -43,4 +47,9 @@ export class SubmitApplicationDto {
   @IsOptional()
   @IsIn(['individual', 'archivo_unico'])
   modoSubida?: string;
+
+  @ApiProperty({ example: 'true', description: 'Debe ser true: el candidato aceptó la política de privacidad' })
+  @Transform(stringToBoolean)
+  @Equals(true, { message: 'Debe aceptar la política de privacidad para continuar.' })
+  aceptaTratamientoDatos: boolean;
 }

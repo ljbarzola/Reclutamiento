@@ -69,6 +69,7 @@ describe('RecruitmentService', () => {
       telefono: '+593 99 123 4567',
       email: 'juan@email.com',
       jobId: '1',
+      aceptaTratamientoDatos: true,
     };
     const file = {
       path: '/tmp/upload1',

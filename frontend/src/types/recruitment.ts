@@ -26,6 +26,8 @@ export interface CandidateData {
   puestoId: number;
   fechaPostulacion: string;
   archivos: { nombre: string; tipo: string }[];
+  aceptaTratamientoDatos: boolean;
+  fechaAceptacionTratamiento: string;
 }
 
 export interface SubmitApplicationResponse {

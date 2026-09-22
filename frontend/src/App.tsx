@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import RecruitmentPage from './pages/recruitment/RecruitmentPage';
+import PrivacyNotice from './pages/recruitment/PrivacyNotice';
 
 function App() {
   return (
@@ -7,6 +8,7 @@ function App() {
       <Routes>
         <Route path="/" element={<RecruitmentPage />} />
         <Route path="/recruitment" element={<RecruitmentPage />} />
+        <Route path="/privacidad" element={<PrivacyNotice />} />
       </Routes>
     </BrowserRouter>
   );

@@ -26,6 +26,8 @@ const candidate: CandidateData = {
   fechaPostulacion: '2026-01-01T00:00:00.000Z',
   archivos: [],
   modoSubida: 'individual',
+  aceptaTratamientoDatos: true,
+  fechaAceptacionTratamiento: '2026-01-01T00:00:00.000Z',
 };
 
 describe('GoogleEmailService', () => {

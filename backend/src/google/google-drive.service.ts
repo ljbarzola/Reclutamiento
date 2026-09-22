@@ -31,6 +31,8 @@ export interface CandidateData {
   fechaPostulacion: string;
   archivos: { nombre: string; tipo: string }[];
   modoSubida: string;
+  aceptaTratamientoDatos: boolean;
+  fechaAceptacionTratamiento: string;
 }
 
 const SHARED_DRIVE_OPTIONS = {
@@ -50,11 +52,15 @@ export function fixUtf8Encoding(str: string | undefined): string {
   return str;
 }
 
+const JOBS_CACHE_TTL_MS = 60_000;
+
 @Injectable()
 export class GoogleDriveService implements OnModuleInit {
   private readonly logger = new Logger(GoogleDriveService.name);
   private drive: any;
   private recruitmentFolderId: string;
+  private jobsCache: { jobs: JobVacancy[]; expiresAt: number } | null = null;
+  private jobsCachePromise: Promise<JobVacancy[]> | null = null;
 
   constructor() {
     this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru';
@@ -147,14 +153,36 @@ export class GoogleDriveService implements OnModuleInit {
   }
 
   async getJobsFromDrive(): Promise<JobVacancy[]> {
+    if (this.jobsCache && this.jobsCache.expiresAt > Date.now()) {
+      return this.jobsCache.jobs;
+    }
+
+    // Varias requests pueden llegar mientras el fetch está en vuelo (p. ej. el
+    // listado y el detalle de una vacante casi al mismo tiempo); comparten la
+    // misma promesa en vez de disparar cada una su propio escaneo de Drive.
+    if (!this.jobsCachePromise) {
+      this.jobsCachePromise = this.fetchJobsFromDrive().then((jobs) => {
+        this.jobsCache = { jobs, expiresAt: Date.now() + JOBS_CACHE_TTL_MS };
+        this.jobsCachePromise = null;
+        return jobs;
+      }).catch((error) => {
+        this.jobsCachePromise = null;
+        throw error;
+      });
+    }
+
+    return this.jobsCachePromise;
+  }
+
+  private async fetchJobsFromDrive(): Promise<JobVacancy[]> {
     if (!this.drive) {
       this.logger.warn('Drive service not initialized');
       return [];
     }
 
     try {
-      const jobs: JobVacancy[] = [];
       const seenIds = new Set<number>();
+      let jobs: JobVacancy[] = [];
 
       const directJsonResponse = await this.drive.files.list({
         q: `'${this.recruitmentFolderId}' in parents and name contains '.json' and mimeType='application/json' and trashed = false`,
@@ -162,20 +190,12 @@ export class GoogleDriveService implements OnModuleInit {
         ...SHARED_DRIVE_OPTIONS,
       });
 
-      for (const file of directJsonResponse.data.files || []) {
-        try {
-          const content = await this.getFileContent(file.id);
-          if (content) {
-            const data = typeof content === 'string' ? JSON.parse(content) : content;
-            if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
-              seenIds.add(data.id);
-              jobs.push(this.parseJobFromDrive(data));
-            }
-          }
-        } catch (error) {
-          this.logger.warn(`Failed to read job file: ${file.name}`);
-        }
-      }
+      const directResults = await Promise.all(
+        (directJsonResponse.data.files || []).map((file: { id: string; name?: string }) =>
+          this.readJobFile(file),
+        ),
+      );
+      jobs = this.collectJobs(directResults, seenIds);
 
       if (jobs.length === 0) {
         const folderResponse = await this.drive.files.list({
@@ -184,34 +204,33 @@ export class GoogleDriveService implements OnModuleInit {
           ...SHARED_DRIVE_OPTIONS,
         });
 
-        for (const folder of folderResponse.data.files || []) {
-          try {
-            const folderJsonResponse = await this.drive.files.list({
-              q: `'${folder.id}' in parents and name contains '.json' and mimeType='application/json' and trashed = false`,
-              fields: 'files(id, name)',
-              ...SHARED_DRIVE_OPTIONS,
-            });
-
-            for (const file of folderJsonResponse.data.files || []) {
-              if (file.name === 'candidato.json') continue;
-
+        const folderJobLists = await Promise.all(
+          (folderResponse.data.files || []).map(
+            async (folder: { id: string; name?: string }) => {
               try {
-                const content = await this.getFileContent(file.id);
-                if (content) {
-                  const data = typeof content === 'string' ? JSON.parse(content) : content;
-                  if (this.isJobVacancyJson(data) && !seenIds.has(data.id)) {
-                    seenIds.add(data.id);
-                    jobs.push(this.parseJobFromDrive(data));
-                  }
-                }
+                const folderJsonResponse = await this.drive.files.list({
+                  q: `'${folder.id}' in parents and name contains '.json' and mimeType='application/json' and trashed = false`,
+                  fields: 'files(id, name)',
+                  ...SHARED_DRIVE_OPTIONS,
+                });
+
+                const filesToRead = (folderJsonResponse.data.files || []).filter(
+                  (file: { id: string; name?: string }) => file.name !== 'candidato.json',
+                );
+                return Promise.all(
+                  filesToRead.map((file: { id: string; name?: string }) =>
+                    this.readJobFile(file, folder.name),
+                  ),
+                );
               } catch (error) {
-                this.logger.warn(`Failed to read job file in folder ${folder.name}: ${file.name}`);
+                this.logger.warn(`Failed to list files in folder: ${folder.name}`);
+                return [];
               }
-            }
-          } catch (error) {
-            this.logger.warn(`Failed to list files in folder: ${folder.name}`);
-          }
-        }
+            },
+          ),
+        );
+
+        jobs = this.collectJobs(folderJobLists.flat(), seenIds);
       }
 
       // Las vacantes con `abierta: false` no se listan ni son accesibles por ID
@@ -221,6 +240,36 @@ export class GoogleDriveService implements OnModuleInit {
       this.logger.error('Failed to list jobs from Drive', error);
       return [];
     }
+  }
+
+  private async readJobFile(
+    file: { id: string; name?: string },
+    folderName?: string,
+  ): Promise<JobVacancy | null> {
+    try {
+      const content = await this.getFileContent(file.id);
+      if (!content) return null;
+      const data = typeof content === 'string' ? JSON.parse(content) : content;
+      return this.isJobVacancyJson(data) ? this.parseJobFromDrive(data) : null;
+    } catch (error) {
+      this.logger.warn(
+        folderName
+          ? `Failed to read job file in folder ${folderName}: ${file.name}`
+          : `Failed to read job file: ${file.name}`,
+      );
+      return null;
+    }
+  }
+
+  private collectJobs(candidates: (JobVacancy | null)[], seenIds: Set<number>): JobVacancy[] {
+    const jobs: JobVacancy[] = [];
+    for (const job of candidates) {
+      if (job && !seenIds.has(job.id)) {
+        seenIds.add(job.id);
+        jobs.push(job);
+      }
+    }
+    return jobs;
   }
 
   async getJobByIdFromDrive(jobId: number): Promise<JobVacancy | null> {
@@ -361,6 +410,8 @@ export class GoogleDriveService implements OnModuleInit {
           tipo: a.tipo,
         })),
         modoSubida: data.modoSubida || 'individual',
+        aceptaTratamientoDatos: !!data.aceptaTratamientoDatos,
+        fechaAceptacionTratamiento: data.fechaAceptacionTratamiento || '',
       };
 
       const jsonContent = JSON.stringify(cleanData, null, 2);
