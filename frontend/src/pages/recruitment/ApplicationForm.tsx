@@ -27,7 +27,7 @@ const STANDARD_FIELD_MATCHERS: Record<StandardKey, string[]> = {
   nombre: ['nombre', 'nombre completo'],
   cedula: ['cédula', 'cedula'],
   email: ['email', 'correo', 'correo electrónico', 'correo electronico'],
-  telefono: ['teléfono', 'telefono'],
+  telefono: ['teléfono', 'telefono', 'celular'],
   nombres: ['nombres'],
   apellidos: ['apellidos'],
 };
@@ -102,6 +102,9 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
   if (matchStandardKey(campo.nombre) === 'apellidos') {
     const words = value.split(/\s+/).filter(Boolean);
     if (words.length < 2) return 'Ingresa tus dos apellidos.';
+  }
+  if (matchStandardKey(campo.nombre) === 'cedula' && !/^\d{10}$/.test(value)) {
+    return 'La cédula debe tener 10 dígitos, sin espacios ni guiones.';
   }
   switch (campo.tipo) {
     case 'NUMERICO':
@@ -254,12 +257,11 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       const extras: Record<string, string> = {};
       for (const campo of campos) {
         const value = (values[campo.nombre] || '').trim();
+        // Siempre con el nombre de la vacante. Si solo se manda el nombre
+        // canónico ("Teléfono"), RRHH ve "Falta" en un campo llamado "Celular".
+        extras[campo.nombre] = value;
         const key = matchStandardKey(campo.nombre);
-        if (key) {
-          standard[key] = value;
-        } else {
-          extras[campo.nombre] = value;
-        }
+        if (key) standard[key] = value;
       }
 
       // Vacante nueva (Fase 6): si el candidato llenó Nombres Y Apellidos por
