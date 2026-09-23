@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsIn, MinLength, Equals } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsIn, MinLength, Equals, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -20,7 +20,7 @@ export class SubmitApplicationDto {
 
   @ApiProperty({ example: '0987654321' })
   @IsString()
-  @MinLength(10)
+  @Matches(/^\d{10}$/, { message: 'La cédula debe tener 10 dígitos, sin espacios ni guiones.' })
   cedula: string;
 
   @ApiProperty({ example: '+593 99 123 4567' })
