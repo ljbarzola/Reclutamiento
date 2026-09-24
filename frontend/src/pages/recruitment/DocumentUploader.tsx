@@ -46,8 +46,19 @@ export default function DocumentUploader({
   // Update parent whenever docMap or modo change
   useEffect(() => {
     const allFiles: File[] = [];
+    // "Archivo Completo" y "Documentos Adicionales" son las etiquetas
+    // genéricas de los casilleros de carga, no el nombre de ningún documento
+    // real (a diferencia de "Cédula", "Hoja de Vida", etc. en modo
+    // individual) — RRHH todavía tiene que separar/etiquetar ese archivo, así
+    // que prefijarlo solo ensucia el nombre que termina viendo en cada
+    // documento ya separado ("Cédula - Archivo Completo - original.pdf").
+    const SLOTS_SIN_PREFIJO = new Set([ARCHIVO_UNICO_SLOT_NAME, EXTRA_DOCS_SLOT_NAME]);
     Object.entries(docMap).forEach(([docName, files]) => {
       files.forEach((file) => {
+        if (SLOTS_SIN_PREFIJO.has(docName)) {
+          allFiles.push(file);
+          return;
+        }
         const cleanDocName = docName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_ -]/g, '').trim();
         const renamedFile = new File([file], `${cleanDocName} - ${file.name}`, {
           type: file.type,
