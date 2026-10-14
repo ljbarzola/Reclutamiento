@@ -27,7 +27,7 @@ Este documento contiene todo el contexto, arquitectura, credenciales, reglas y p
 - **Service Account Email:** `gemeseg-servicio-reclutamiento@reclutamiento-505320.iam.gserviceaccount.com`
 - **Google Drive Folder ID (Shared Drive):** `1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru`
 - **Credenciales Locales:** `backend/reclutamiento-505320-181ae2819102.json` (apuntado por `GOOGLE_SERVICE_ACCOUNT_FILE` en `backend/.env`).
-- **Credenciales Producción:** `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` inyectado en Cloud Run.
+- **Credenciales Producción:** `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` inyectado en Cloud Run desde el secreto de GitHub `RUNTIME_SA_KEY` (cuenta `gemeseg-servicio-reclutamiento`, solo acceso a Drive). El despliegue usa otra cuenta, `github-deploy-backend`, con el secreto `GCP_SA_KEY` (puede desplegar, no accede a Drive).
 
 ---
 
@@ -82,7 +82,7 @@ Si el JSON no incluye `abierta`, se trata como `true` (abierta) por compatibilid
 **Reglas importantes:**
 - Las claves de `datosFormulario` deben coincidir exactamente con `camposRequeridos` (mismo texto, mayúsculas/acentos).
 - Solo "Nombre completo", "Cédula", "Teléfono" y "Email" tienen reconocimiento flexible.
-- El sistema hace **merge** (lee antes de escribir): no sobreescribe datos que RRHH haya editado desde MejoraGemeseg.
+- El sistema hace **merge** (lee antes de subir nada): conserva las claves guardadas que el envío nuevo no trae y un valor nuevo vacío no borra uno guardado; si el envío trae la misma clave con valor, gana el valor nuevo (ver ARCHITECTURE.md, sección Merge).
 - Los archivos nuevos se **agregan** al array; no se borran documentos de postulaciones pasadas.
 
 ---
@@ -90,7 +90,7 @@ Si el JSON no incluye `abierta`, se trata como `true` (abierta) por compatibilid
 ## 🔌 API & Backend
 - **Puerto local backend:** `3000`
 - **Prefijo global de API:** `/api`
-- **Swagger:** `http://localhost:3000/docs` (solo en desarrollo)
+- **Swagger:** `http://localhost:3000/docs` (solo con `NODE_ENV=development` o `ENABLE_SWAGGER=true`)
 - **Endpoints:**
   - `GET /api/health` — Health check de Cloud Run (incluye `isConfigured` de Drive y `emailConfigured` de Gmail)
   - `GET /api/recruitment/jobs` — Retorna la lista de vacantes en JSON desde Google Drive
@@ -151,7 +151,7 @@ Si el JSON no incluye `abierta`, se trata como `true` (abierta) por compatibilid
 - `palabrasClave` de vacantes: NO se devuelven al frontend
 - `driveLink` de Google Drive: NO se devuelve al frontend
 - Email de Service Account: NO se expone en health endpoint
-- Swagger: solo en desarrollo
+- Swagger: apagado por defecto (solo con `NODE_ENV=development` o `ENABLE_SWAGGER=true`)
 
 ### CORS
 - Orígenes: `localhost:3000`, `localhost:5173`, `reclutamiento.gemeseg.com`, dominios Firebase

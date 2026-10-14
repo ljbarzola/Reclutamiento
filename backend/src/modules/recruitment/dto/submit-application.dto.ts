@@ -1,4 +1,13 @@
-import { IsString, IsEmail, IsOptional, IsIn, MinLength, Equals, Matches } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsIn,
+  MinLength,
+  MaxLength,
+  Equals,
+  Matches,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -16,6 +25,7 @@ export class SubmitApplicationDto {
   @ApiProperty({ example: 'Juan Pérez' })
   @IsString()
   @MinLength(3)
+  @MaxLength(200)
   nombre: string;
 
   @ApiProperty({ example: '0987654321' })
@@ -26,21 +36,25 @@ export class SubmitApplicationDto {
   @ApiProperty({ example: '+593 99 123 4567' })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   telefono?: string;
 
   @ApiPropertyOptional({ example: 'juan.perez@email.com' })
   @Transform(emptyToUndefined)
   @IsOptional()
   @IsEmail()
+  @MaxLength(254)
   email?: string;
 
   @ApiProperty({ example: '1' })
   @IsString()
+  @MaxLength(20)
   jobId: string;
 
   @ApiPropertyOptional({ example: '{"Antecedentes Penales": "SI"}' })
   @IsOptional()
   @IsString()
+  @MaxLength(100000)
   extraFields?: string;
 
   @ApiPropertyOptional({ example: 'individual', enum: ['individual', 'archivo_unico'] })

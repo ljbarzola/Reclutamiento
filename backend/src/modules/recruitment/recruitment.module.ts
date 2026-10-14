@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { BadRequestException, Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
@@ -24,14 +24,21 @@ const ALLOWED_MIMES = [
     GoogleModule,
     MulterModule.register({
       dest: uploadsDir,
+      // Tope grueso de multer: el servicio aplica el límite exacto de 15 MB por archivo
+      // (igual que el formulario web). Se deja 1 KB de margen porque multer corta con
+      // "mayor o igual" y un archivo de exactamente 15 MB debe seguir aceptándose.
       limits: {
-        fileSize: 50 * 1024 * 1024,
+        fileSize: 15 * 1024 * 1024 + 1024,
+        files: 20,
+        fields: 30,
+        fieldSize: 256 * 1024,
+        parts: 60,
       },
       fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIMES.includes(file.mimetype)) {
           cb(null, true);
         } else {
-          cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`), false);
+          cb(new BadRequestException(`Tipo de archivo no permitido: ${file.mimetype}`), false);
         }
       },
     }),

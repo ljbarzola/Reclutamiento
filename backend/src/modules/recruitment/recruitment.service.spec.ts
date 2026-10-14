@@ -34,6 +34,7 @@ describe('RecruitmentService', () => {
             getOrCreateJobFolder: jest.fn(),
             findOrCreateCandidateFolder: jest.fn(),
             readCandidateJson: jest.fn(),
+            readCandidateJsonStrict: jest.fn(),
             uploadFile: jest.fn(),
             uploadCandidateJson: jest.fn(),
           },
@@ -126,7 +127,7 @@ describe('RecruitmentService', () => {
       driveService.getJobByIdFromDrive.mockResolvedValue(job);
       driveService.getOrCreateJobFolder.mockResolvedValue('job-folder-id');
       driveService.findOrCreateCandidateFolder.mockResolvedValue('candidate-folder-id');
-      driveService.readCandidateJson.mockResolvedValue(null);
+      driveService.readCandidateJsonStrict.mockResolvedValue(null);
       driveService.uploadFile.mockResolvedValue({ fileId: 'file-1', link: 'https://drive/file-1' });
       driveService.uploadCandidateJson.mockResolvedValue(false);
 
@@ -138,7 +139,7 @@ describe('RecruitmentService', () => {
       driveService.getJobByIdFromDrive.mockResolvedValue(job);
       driveService.getOrCreateJobFolder.mockResolvedValue('job-folder-id');
       driveService.findOrCreateCandidateFolder.mockResolvedValue('candidate-folder-id');
-      driveService.readCandidateJson.mockResolvedValue(null);
+      driveService.readCandidateJsonStrict.mockResolvedValue(null);
       driveService.uploadFile.mockResolvedValue({ fileId: 'file-1', link: 'https://drive/file-1' });
       driveService.uploadCandidateJson.mockResolvedValue(true);
       emailService.sendCandidateNotification.mockResolvedValue(true);
@@ -187,7 +188,7 @@ describe('RecruitmentService', () => {
       driveService.getJobByIdFromDrive.mockResolvedValue(job);
       driveService.getOrCreateJobFolder.mockResolvedValue('job-folder-id');
       driveService.findOrCreateCandidateFolder.mockResolvedValue('candidate-folder-id');
-      driveService.readCandidateJson.mockResolvedValue(null);
+      driveService.readCandidateJsonStrict.mockResolvedValue(null);
       driveService.uploadFile.mockResolvedValue({ fileId: 'file-1', link: 'https://drive/file-1' });
       driveService.uploadCandidateJson.mockResolvedValue(true);
       emailService.sendCandidateNotification.mockResolvedValue(false);

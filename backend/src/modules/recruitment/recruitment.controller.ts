@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { RecruitmentService } from './recruitment.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
+import { CleanupUploadsInterceptor } from './cleanup-uploads.interceptor';
 
 @ApiTags('recruitment')
 @Controller('recruitment')
@@ -57,7 +58,9 @@ export class RecruitmentController {
       required: ['nombre', 'cedula', 'jobId'],
     },
   })
-  @UseInterceptors(FilesInterceptor('files', 20))
+  // El orden importa: CleanupUploadsInterceptor va DESPUÉS de FilesInterceptor para
+  // rodear al ValidationPipe y borrar los temporales aunque el cuerpo sea inválido.
+  @UseInterceptors(FilesInterceptor('files', 20), CleanupUploadsInterceptor)
   async submitApplication(
     @Body() dto: SubmitApplicationDto,
     @UploadedFiles() files: Express.Multer.File[],

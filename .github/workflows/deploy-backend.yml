@@ -4,21 +4,28 @@ on:
   push:
     branches: [main]
 
+# El token del workflow solo necesita leer el repositorio.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # GCP_SA_KEY es la clave de la cuenta de DESPLIEGUE (github-deploy-backend): solo puede
+      # desplegar. La app usa otra clave distinta (RUNTIME_SA_KEY, cuenta de la app), que solo
+      # tiene acceso a Drive y es la que se entrega al servicio más abajo.
       - name: Auth to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev
@@ -35,13 +42,34 @@ jobs:
             ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/recruitment-backend:${{ github.sha }}
 
       - name: Deploy to Cloud Run
+        # Los secretos entran por variables de entorno (no se interpolan dentro del
+        # script). Las variables opcionales solo se envían si el secreto existe: antes
+        # un secreto ausente llegaba como texto vacío y VACIABA la variable que ya
+        # estaba configurada en Cloud Run (correo a RRHH y carpeta de Drive).
+        env:
+          RUNTIME_SA_KEY: ${{ secrets.RUNTIME_SA_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          MAIL_SENDER: ${{ secrets.GMAIL_SEND_EMAIL }}
+          MAIL_RRHH: ${{ secrets.RRHH_EMAIL }}
         run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/sa.json
-          SA_BASE64=$(base64 -w 0 /tmp/sa.json)
-          rm /tmp/sa.json
+          if [ -z "$RUNTIME_SA_KEY" ]; then
+            echo "Falta el secreto RUNTIME_SA_KEY (clave de la cuenta de la app): se cancela sin tocar el servicio."
+            exit 1
+          fi
+          SA_BASE64=$(printf '%s' "$RUNTIME_SA_KEY" | base64 -w 0)
+          ENV_VARS="GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=${SA_BASE64}"
+          if [ -n "$DRIVE_FOLDER_ID" ]; then
+            ENV_VARS="${ENV_VARS},GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID=${DRIVE_FOLDER_ID}"
+          fi
+          if [ -n "$MAIL_SENDER" ]; then
+            ENV_VARS="${ENV_VARS},GMAIL_SEND_EMAIL=${MAIL_SENDER}"
+          fi
+          if [ -n "$MAIL_RRHH" ]; then
+            ENV_VARS="${ENV_VARS},RRHH_EMAIL=${MAIL_RRHH}"
+          fi
           gcloud run deploy recruitment-backend \
             --image ${{ secrets.GCP_AR_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/recruitment-backend:${{ github.sha }} \
             --region ${{ secrets.GCP_AR_REGION }} \
             --allow-unauthenticated \
-            --update-env-vars "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=${SA_BASE64},GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID=${{ secrets.GOOGLE_DRIVE_FOLDER_ID }},GMAIL_SEND_EMAIL=${{ secrets.GMAIL_SEND_EMAIL }},RRHH_EMAIL=${{ secrets.RRHH_EMAIL }}" \
+            --update-env-vars "${ENV_VARS}" \
             --port 8080

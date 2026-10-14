@@ -8,3 +8,9 @@ uploads
 coverage
 *.md
 .firebase
+*.pem
+*.key
+credentials*.json
+service-account*.json
+gha-creds-*.json
+*-505320-*.json

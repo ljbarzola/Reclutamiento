@@ -3,6 +3,7 @@ import {
   Logger,
   BadRequestException,
   InternalServerErrorException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   GoogleDriveService,
@@ -12,6 +13,13 @@ import {
 } from '../../google/google-drive.service';
 import { GoogleEmailService } from '../../google/google-email.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
+import {
+  sanitizeLine,
+  parseExtraFields,
+  toClientDocPrefix,
+  describeError,
+  MAX_TOTAL_FORM_KEYS,
+} from '../../common/sanitize.util';
 import * as fs from 'fs';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
@@ -63,8 +71,12 @@ export class RecruitmentService {
         throw new BadRequestException('Failed to resolve job folder in Google Drive');
       }
 
-      const candidateName = fixUtf8Encoding(dto.nombre);
-      const candidateCedula = fixUtf8Encoding(dto.cedula);
+      // Texto del postulante tratado como DATO de una sola línea: sin saltos de línea
+      // ni caracteres de control (se usa en nombres de carpeta, JSON, correo y logs).
+      const candidateName = sanitizeLine(fixUtf8Encoding(dto.nombre), 200);
+      const candidateCedula = sanitizeLine(fixUtf8Encoding(dto.cedula), 50);
+      const candidateTelefono = sanitizeLine(fixUtf8Encoding(dto.telefono || ''), 50);
+      const candidateEmail = sanitizeLine(fixUtf8Encoding(dto.email), 254);
       const candidateFolderId = await this.driveService.findOrCreateCandidateFolder(
         candidateName,
         candidateCedula,
@@ -73,6 +85,20 @@ export class RecruitmentService {
 
       if (!candidateFolderId) {
         throw new BadRequestException('Failed to resolve candidate folder in Google Drive');
+      }
+
+      // Se lee el registro previo ANTES de subir nada: si Drive falla de forma
+      // transitoria no se sobrescribe en silencio lo que ya estaba guardado ni se
+      // dejan archivos huérfanos. Un candidato.json ilegible se sigue tratando como
+      // ausente (igual que antes).
+      let existingData: CandidateData | null;
+      try {
+        existingData = await this.driveService.readCandidateJsonStrict(candidateFolderId);
+      } catch (error) {
+        this.logger.error(`No se pudo leer candidato.json de la carpeta ${candidateFolderId}: ${describeError(error)}`);
+        throw new ServiceUnavailableException(
+          'No pudimos verificar su postulación en este momento. Por favor intente nuevamente en unos minutos.',
+        );
       }
 
       const uploadedFiles: { nombre: string; tipo: string }[] = [];
@@ -99,29 +125,43 @@ export class RecruitmentService {
         }
       }
 
-      const existingData = await this.driveService.readCandidateJson(candidateFolderId);
-
       const datosFormulario: Record<string, string> = {
         'Nombre completo': candidateName,
         'Cédula': candidateCedula,
-        'Teléfono': fixUtf8Encoding(dto.telefono || ''),
-        'Email': fixUtf8Encoding(dto.email),
+        'Teléfono': candidateTelefono,
+        'Email': candidateEmail,
       };
 
-      if (dto.extraFields) {
-        try {
-          const extras = JSON.parse(dto.extraFields);
-          Object.assign(datosFormulario, extras);
-        } catch {
-          this.logger.warn('Failed to parse extraFields JSON');
-        }
+      const { fields: extras, valid: extrasValid } = parseExtraFields(dto.extraFields);
+      if (!extrasValid) {
+        this.logger.warn('extraFields no es un objeto JSON válido; se ignora');
       }
 
-      if (existingData?.datosFormulario) {
-        for (const [key, value] of Object.entries(existingData.datosFormulario)) {
-          if (!(key in datosFormulario)) {
-            datosFormulario[key] = value as string;
-          }
+      const existingForm: Record<string, unknown> =
+        existingData?.datosFormulario && typeof existingData.datosFormulario === 'object'
+          ? (existingData.datosFormulario as Record<string, unknown>)
+          : {};
+      const existingKeyCount = Object.keys(existingForm).length;
+      let newKeysAllowed = Math.max(0, MAX_TOTAL_FORM_KEYS - existingKeyCount);
+
+      for (const [key, value] of Object.entries(extras)) {
+        const isKnown = Object.prototype.hasOwnProperty.call(datosFormulario, key);
+        const existedBefore = Object.prototype.hasOwnProperty.call(existingForm, key);
+        if (!isKnown && !existedBefore) {
+          // Tope de tamaño del registro: las claves nuevas se aceptan hasta el límite.
+          if (newKeysAllowed <= 0) continue;
+          newKeysAllowed--;
+        }
+        datosFormulario[key] = value;
+      }
+
+      // Lo ya guardado se conserva. Un valor nuevo no vacío gana (quien corrige sus
+      // datos puede hacerlo), pero uno VACÍO ya no borra el dato guardado.
+      for (const [key, value] of Object.entries(existingForm)) {
+        if (!Object.prototype.hasOwnProperty.call(datosFormulario, key)) {
+          datosFormulario[key] = value as string;
+        } else if (datosFormulario[key] === '' && typeof value === 'string' && value !== '') {
+          datosFormulario[key] = value;
         }
       }
 
@@ -157,7 +197,9 @@ export class RecruitmentService {
           candidateEmail: datosFormulario['Email'] || '',
           jobTitle: candidateData.puesto,
           status: 'PENDING',
-          createdAt: candidateData.fechaPostulacion,
+          // Hora de ESTE envío: no se devuelve la fecha de una postulación anterior
+          // (revelaría que la persona ya había postulado). En Drive se conserva la original.
+          createdAt: new Date().toISOString(),
         },
       };
     } finally {
@@ -169,13 +211,17 @@ export class RecruitmentService {
     requiredFiles: ArchivoRequerido[],
     files: Express.Multer.File[],
   ) {
-    const missing = requiredFiles.filter(
-      (req) =>
-        req.obligatorio &&
-        !files.some((f) =>
-          fixUtf8Encoding(f.originalname).toLowerCase().startsWith(req.nombre.toLowerCase()),
-        ),
-    );
+    const missing = requiredFiles.filter((req) => {
+      if (!req.obligatorio) return false;
+      // El formulario web antepone el nombre del documento SIN símbolos; se acepta
+      // ese prefijo además del nombre exacto (solo amplía lo aceptado).
+      const exact = String(req.nombre ?? '').toLowerCase();
+      const clean = toClientDocPrefix(String(req.nombre ?? '')).toLowerCase();
+      return !files.some((f) => {
+        const fileName = fixUtf8Encoding(f.originalname).toLowerCase();
+        return fileName.startsWith(exact) || (clean !== '' && fileName.startsWith(clean));
+      });
+    });
     if (missing.length > 0) {
       throw new BadRequestException(
         `Faltan documentos requeridos: ${missing.map((m) => m.nombre).join(', ')}`,
