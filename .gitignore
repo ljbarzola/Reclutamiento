@@ -6,3 +6,11 @@ uploads
 coverage
 .firebase
 *.log
+
+# Claves y credenciales: nunca al repositorio
+*.pem
+*.key
+credentials*.json
+service-account*.json
+gha-creds-*.json
+*-505320-*.json

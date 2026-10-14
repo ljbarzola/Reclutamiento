@@ -60,10 +60,12 @@ Shared Drive Root (1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru)
 - Los campos personalizados necesitan el nombre exacto.
 
 ### Merge (no sobrescribir)
-- Si ya existe un `candidato.json` en la carpeta del candidato, el sistema lo **lee** antes de escribir.
-- Los campos de `datosFormulario` nuevos se agregan; los existentes se mantienen.
+- Si ya existe un `candidato.json` en la carpeta del candidato, el sistema lo **lee** antes de subir nada. Si Drive falla de forma transitoria al leerlo, el envío se detiene con un 503 (no se sobrescribe lo guardado). Un `candidato.json` ilegible se trata como ausente.
+- Las claves guardadas que el envío nuevo no trae se **conservan**. Si el envío trae la misma clave, **gana el valor nuevo** (así quien corrige sus datos puede hacerlo), pero un valor nuevo **vacío no borra** uno guardado.
+- Tope de tamaño: `extraFields` acepta hasta 200 claves por envío (valores de texto de una sola línea; se descartan `__proto__`, objetos y arreglos) y el registro no pasa de 500 claves.
 - Los archivos nuevos se **agregan** al array `archivos`; los anteriores NO se borran.
-- La `fechaPostulacion` original se preserva.
+- La `fechaPostulacion` y la fecha de aceptación originales se preservan; la respuesta al postulante devuelve la hora del envío actual (no revela postulaciones anteriores).
+- **Limitación conocida:** la identidad del postulante es `nombre - cédula` sin prueba de propiedad: quien conozca ambos datos puede reenviar sobre ese registro. Cambiarlo altera el formato que lee MejoraGemeseg, por eso queda como decisión pendiente.
 
 ---
 
@@ -71,7 +73,7 @@ Shared Drive Root (1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru)
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET` | `/api/health` | Health check (solo `{ status: 'ok' }`) |
+| `GET` | `/api/health` | Health check (`{ status, isConfigured, emailConfigured }`) |
 | `GET` | `/api/recruitment/jobs` | Lista vacantes (sin `palabrasClave`) |
 | `GET` | `/api/recruitment/jobs/:id` | Vacante por ID |
 | `POST` | `/api/recruitment/applications/submit` | Envía postulación con documentos |
@@ -84,11 +86,13 @@ Shared Drive Root (1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru)
 ## Seguridad Implementada
 
 ### Headers de Seguridad
-- **Helmet.js** habilitado en `main.ts` — configura headers HTTP seguros (X-Content-Type-Options, X-Frame-Options, CSP, etc.)
+- **Helmet.js** habilitado en `main.ts` — configura headers HTTP seguros en la **API** (X-Content-Type-Options, X-Frame-Options, CSP, etc.)
+- **Firebase Hosting** (`firebase.json`) añade al sitio web: `Content-Security-Policy` (conexiones solo a `'self'` y `https://*.run.app`), `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options`, `Referrer-Policy` y `Permissions-Policy`; las rutas de la SPA (`/`, `/recruitment`, `/privacidad`) van con `Cache-Control: no-cache`. Si cambia el dominio de la API fuera de `run.app`, hay que ajustar `connect-src`.
 
 ### Rate Limiting
 - **@nestjs/throttler** configurado en `app.module.ts`
-- Límite: 20 peticiones por ventana de 60 segundos
+- Límite: 20 peticiones por ventana de 60 segundos (8 envíos por 10 minutos en `POST applications/submit`), en memoria por instancia
+- Detrás de Cloud Run se confía en 1 salto de proxy (`trust proxy`) para usar la IP real del cliente; `TRUST_PROXY_HOPS` lo cambia (`0` lo apaga)
 - Aplicado globalmente vía `APP_GUARD`
 
 ### Autenticación
@@ -97,19 +101,22 @@ Shared Drive Root (1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru)
 
 ### Validación de Archivos
 - **FileFilter en Multer:** Solo acepta MIME types permitidos (PDF, JPEG, PNG, Word, Excel)
-- **Tamaño máximo:** 50MB por archivo
+- **Tamaño máximo:** 15MB por archivo (multer corta en 15MB + 1KB y el servicio aplica el límite exacto), máx. 20 archivos, 30 campos de texto de hasta 256KB
 - **Frontend:** Validación adicional de extensiones y tamaño (15MB por archivo)
 
 ### Sanitización
 - Nombres de archivo: se eliminan caracteres peligrosos (`/\:*?"<>|`)
 - Queries de Google Drive: se escapan comillas simples
+- Texto del postulante (nombre, cédula, teléfono, correo y `extraFields`): se reemplazan saltos de línea, caracteres de control y marcas bidireccionales; el correo a RRHH y los logs reciben los valores ya limpios y recortados
+- Archivos temporales: `CleanupUploadsInterceptor` los borra aunque la validación del cuerpo falle
+- Logs: no incluyen nombre ni cédula ni objetos de error completos de Google
 - `ValidationPipe` con `whitelist: true` y `forbidNonWhitelisted: true`
 
 ### Información No Expuesta
 - `palabrasClave` de vacantes: NO se devuelven al frontend
 - `driveLink` de Google Drive: NO se devuelve al frontend
 - Email de Service Account: NO se expone en el health endpoint
-- Swagger: solo disponible en desarrollo (`NODE_ENV !== 'production'`)
+- Swagger: apagado por defecto; solo con `NODE_ENV=development` o `ENABLE_SWAGGER=true`
 - Archivos temporales de uploads: NO se sirven como estáticos
 
 ### CORS
@@ -151,7 +158,7 @@ NODE_ENV=development
 PORT=3000
 GOOGLE_SERVICE_ACCOUNT_FILE='./reclutamiento-505320-181ae2819102.json'
 GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID='1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru'
-MAX_FILE_SIZE_MB='50'
+# Opcionales: ENABLE_SWAGGER=true (documentación en /docs), TRUST_PROXY_HOPS=1 (saltos de proxy; en Cloud Run ya es 1 por defecto)
 ```
 
 ### Frontend (`.env`)
@@ -188,5 +195,5 @@ VITE_API_URL=http://localhost:3000
 - **Eliminación del modo PDF:** solo carga individual
 - **Límite de docs adicionales:** cambiado de 2 a 5
 - **Seguridad:** Helmet, rate limiting, fileFilter en Multer, sin exposición de links de Drive ni palabrasClave
-- **Swagger:** solo en desarrollo
-- **Health endpoint:** solo retorna `{ status: 'ok' }`
+- **Swagger:** solo con `NODE_ENV=development` o `ENABLE_SWAGGER=true`
+- **Health endpoint:** retorna `{ status, isConfigured, emailConfigured }` (booleanos, sin datos sensibles)

@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as fs from 'fs';
+import { describeError } from '../common/sanitize.util';
 
 export interface CampoRequerido {
   nombre: string;
@@ -64,6 +65,11 @@ export class GoogleDriveService implements OnModuleInit {
 
   constructor() {
     this.recruitmentFolderId = process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID || '1VM4Ypbbs0xOBvt-TSLQqQuSrTEUp_Bru';
+    if (!process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID) {
+      this.logger.warn(
+        'GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID no está definida: se usa la carpeta por defecto del código',
+      );
+    }
   }
 
   async onModuleInit() {
@@ -98,7 +104,7 @@ export class GoogleDriveService implements OnModuleInit {
       this.drive = google.drive({ version: 'v3', auth });
       this.logger.log('Google Drive service initialized');
     } catch (error) {
-      this.logger.error('Failed to initialize Google Drive service', error);
+      this.logger.error(`Failed to initialize Google Drive service: ${describeError(error)}`);
     }
   }
 
@@ -237,7 +243,7 @@ export class GoogleDriveService implements OnModuleInit {
       // (getJobByIdFromDrive reutiliza esta lista), efectivamente cerrando la convocatoria.
       return jobs.filter((job) => job.abierta);
     } catch (error) {
-      this.logger.error('Failed to list jobs from Drive', error);
+      this.logger.error(`Failed to list jobs from Drive: ${describeError(error)}`);
       return [];
     }
   }
@@ -286,7 +292,7 @@ export class GoogleDriveService implements OnModuleInit {
       });
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get file content: ${fileId}`, error);
+      this.logger.error(`Failed to get file content: ${fileId}: ${describeError(error)}`);
       return null;
     }
   }
@@ -320,7 +326,7 @@ export class GoogleDriveService implements OnModuleInit {
 
       return createResponse.data.id;
     } catch (error) {
-      this.logger.error(`Failed to get or create job folder for: ${cleanJobTitle}`, error);
+      this.logger.error(`Failed to get or create job folder for: ${cleanJobTitle}: ${describeError(error)}`);
       return null;
     }
   }
@@ -346,7 +352,7 @@ export class GoogleDriveService implements OnModuleInit {
 
       const existingFolders = searchResponse.data.files || [];
       if (existingFolders.length > 0) {
-        this.logger.log(`Candidate folder found: ${folderName} (${existingFolders[0].id})`);
+        this.logger.log(`Candidate folder found (${existingFolders[0].id})`);
         return existingFolders[0].id;
       }
 
@@ -360,10 +366,10 @@ export class GoogleDriveService implements OnModuleInit {
         ...SHARED_DRIVE_OPTIONS,
       });
 
-      this.logger.log(`Candidate folder created: ${folderName} (${createResponse.data.id})`);
+      this.logger.log(`Candidate folder created (${createResponse.data.id})`);
       return createResponse.data.id;
     } catch (error) {
-      this.logger.error(`Failed to find or create candidate folder: ${folderName}`, error);
+      this.logger.error(`Failed to find or create candidate folder: ${describeError(error)}`);
       return null;
     }
   }
@@ -386,7 +392,40 @@ export class GoogleDriveService implements OnModuleInit {
 
       return typeof content === 'string' ? JSON.parse(content) : (content as CandidateData);
     } catch (error) {
-      this.logger.error(`Failed to read candidato.json from folder ${folderId}`, error);
+      this.logger.error(`Failed to read candidato.json from folder ${folderId}: ${describeError(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Igual que readCandidateJson pero distingue "no existe / ilegible" (devuelve null,
+   * igual que antes) de un fallo de Drive (lanza el error). Así quien llama puede
+   * abortar antes de sobrescribir un registro que no pudo leer.
+   */
+  async readCandidateJsonStrict(folderId: string): Promise<CandidateData | null> {
+    if (!this.drive) return null;
+
+    const searchResponse = await this.drive.files.list({
+      q: `'${folderId}' in parents and name = 'candidato.json' and mimeType = 'application/json' and trashed = false`,
+      fields: 'files(id)',
+      ...SHARED_DRIVE_OPTIONS,
+    });
+
+    const files = searchResponse.data.files || [];
+    if (files.length === 0) return null;
+
+    const response = await this.drive.files.get({
+      fileId: files[0].id,
+      alt: 'media',
+      ...SHARED_DRIVE_OPTIONS,
+    });
+    const content = response.data;
+    if (!content) return null;
+
+    try {
+      return typeof content === 'string' ? JSON.parse(content) : (content as CandidateData);
+    } catch {
+      this.logger.warn(`candidato.json ilegible en la carpeta ${folderId}; se trata como ausente`);
       return null;
     }
   }
@@ -451,7 +490,7 @@ export class GoogleDriveService implements OnModuleInit {
       this.logger.log(`candidato.json saved to candidate folder ${folderId}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to upload candidato.json`, error);
+      this.logger.error(`Failed to upload candidato.json: ${describeError(error)}`);
       return false;
     }
   }
@@ -485,7 +524,7 @@ export class GoogleDriveService implements OnModuleInit {
 
       return { fileId, link };
     } catch (error) {
-      this.logger.error(`Failed to upload file: ${cleanFileName}`, error);
+      this.logger.error(`Failed to upload file: ${cleanFileName}: ${describeError(error)}`);
       return null;
     }
   }
