@@ -5,6 +5,17 @@ import { recruitmentService } from '../../services/recruitment.service';
 import DocumentUploader, { UploadMode } from './DocumentUploader';
 import SuccessModal from './SuccessModal';
 import { MAX_TOTAL_BYTES, formatoMB, mensajeErrorEnvio } from '../../utils/erroresEnvio';
+import {
+  cedulaEcuatorianaValida,
+  edadCumplida,
+  esCampoEdad,
+  esCampoNacimiento,
+  leerFecha,
+  revisarEdad,
+  revisarRangoFecha,
+  revisarTelefono,
+  sugerenciaCorreo,
+} from '../../utils/validacionTipeo';
 
 // TODO (futuro): Agregar aria-describedby a cada input apuntando a su mensaje de error
 // para mejorar accesibilidad con lectores de pantalla.
@@ -94,7 +105,26 @@ function helpTextForCampo(campo: CampoRequerido): string | null {
   }
 }
 
-function validateCampoValor(campo: CampoRequerido, valor: string): string | null {
+interface ContextoValidacion {
+  campos: CampoRequerido[];
+  values: Record<string, string>;
+}
+
+// Edad calculada desde el campo de fecha de nacimiento, si existe y es válido.
+function edadSegunNacimiento(contexto?: ContextoValidacion): number | null {
+  if (!contexto) return null;
+  const nacimiento = contexto.campos.find((c) => c.tipo === 'FECHA' && esCampoNacimiento(c.nombre));
+  if (!nacimiento) return null;
+  const fecha = leerFecha(contexto.values[nacimiento.nombre] || '');
+  if (!fecha) return null;
+  return edadCumplida(fecha.dia, fecha.mes, fecha.anio);
+}
+
+function validateCampoValor(
+  campo: CampoRequerido,
+  valor: string,
+  contexto?: ContextoValidacion,
+): string | null {
   const value = valor.trim();
   if (!value) {
     return campo.obligatorio ? `${campo.nombre} es un campo obligatorio.` : null;
@@ -103,18 +133,36 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
     const words = value.split(/\s+/).filter(Boolean);
     if (words.length < 2) return 'Ingresa tus dos apellidos.';
   }
-  if (matchStandardKey(campo.nombre) === 'cedula' && !/^\d{10}$/.test(value)) {
-    return 'La cédula debe tener 10 dígitos, sin espacios ni guiones.';
+  if (matchStandardKey(campo.nombre) === 'cedula') {
+    if (!/^\d{10}$/.test(value)) return 'La cédula debe tener 10 dígitos, sin espacios ni guiones.';
+    if (!cedulaEcuatorianaValida(value)) {
+      return 'Esta cédula no es válida: revisa que todos los dígitos estén bien escritos.';
+    }
   }
   switch (campo.tipo) {
-    case 'NUMERICO':
-      return /^\d+$/.test(value) ? null : `${campo.nombre} debe contener solo números.`;
-    case 'CORREO':
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-        ? null
-        : `${campo.nombre} debe ser un correo electrónico válido.`;
+    case 'NUMERICO': {
+      if (!/^\d+$/.test(value)) return `${campo.nombre} debe contener solo números.`;
+      if (esCampoEdad(campo.nombre)) {
+        const edad = parseInt(value, 10);
+        const fueraDeRango = revisarEdad(edad);
+        if (fueraDeRango) return fueraDeRango;
+        const segunFecha = edadSegunNacimiento(contexto);
+        if (segunFecha !== null && Math.abs(segunFecha - edad) > 1) {
+          return `La edad no coincide con tu fecha de nacimiento (según ella tienes ${segunFecha} años).`;
+        }
+      }
+      return null;
+    }
+    case 'CORREO': {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return `${campo.nombre} debe ser un correo electrónico válido.`;
+      }
+      const sugerido = sugerenciaCorreo(value);
+      return sugerido ? `Revisa tu correo: ¿quisiste decir ${sugerido}?` : null;
+    }
     case 'TELEFONO':
-      return /^[\d+\-\s()]+$/.test(value) ? null : `${campo.nombre} debe ser un teléfono válido.`;
+      if (!/^[\d+\-\s()]+$/.test(value)) return `${campo.nombre} debe ser un teléfono válido.`;
+      return revisarTelefono(value);
     case 'FECHA': {
       const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
       if (!match) return `${campo.nombre} debe tener el formato dd/mm/aaaa.`;
@@ -125,7 +173,8 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
       const parsed = new Date(year, month - 1, day);
       const isRealDate =
         parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
-      return isRealDate ? null : `${campo.nombre} debe ser una fecha válida.`;
+      if (!isRealDate) return `${campo.nombre} debe ser una fecha válida.`;
+      return revisarRangoFecha(campo.nombre, day, month, year);
     }
     case 'TEXTO':
     default:
@@ -178,7 +227,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
   };
 
   const handleFieldBlur = (campo: CampoRequerido) => {
-    const error = validateCampoValor(campo, values[campo.nombre] || '');
+    const error = validateCampoValor(campo, values[campo.nombre] || '', { campos, values });
     setFieldErrors((prev) => {
       if (error) return { ...prev, [campo.nombre]: error };
       const next = { ...prev };
@@ -212,7 +261,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
 
     const errors: Record<string, string> = {};
     for (const campo of campos) {
-      const error = validateCampoValor(campo, values[campo.nombre] || '');
+      const error = validateCampoValor(campo, values[campo.nombre] || '', { campos, values });
       if (error) errors[campo.nombre] = error;
     }
     setFieldErrors(errors);
@@ -362,7 +411,18 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
                 onBlur={() => handleFieldBlur(campo)}
               />
               {fieldErrors[campo.nombre] ? (
-                <span className="error-text">{fieldErrors[campo.nombre]}</span>
+                <>
+                  <span className="error-text">{fieldErrors[campo.nombre]}</span>
+                  {campo.tipo === 'CORREO' && sugerenciaCorreo(values[campo.nombre] || '') && (
+                    <button
+                      type="button"
+                      className="btn-sugerencia"
+                      onClick={() => handleFieldChange(campo.nombre, sugerenciaCorreo(values[campo.nombre] || '') || '')}
+                    >
+                      Usar {sugerenciaCorreo(values[campo.nombre] || '')}
+                    </button>
+                  )}
+                </>
               ) : (
                 helpTextForCampo(campo) && (
                   <span className="field-help">{helpTextForCampo(campo)}</span>
