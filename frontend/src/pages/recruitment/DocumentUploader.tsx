@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArchivoRequerido } from '../../types/recruitment';
+import { comprimirImagen } from '../../utils/comprimirImagen';
 
 export type UploadMode = 'individual' | 'archivo_unico';
 
@@ -33,6 +34,10 @@ export default function DocumentUploader({
   // Map of docName -> File[]
   const [docMap, setDocMap] = useState<Record<string, File[]>>({});
   const [dragSlot, setDragActiveSlot] = useState<string | null>(null);
+  // Aviso que se muestra dentro del casillero donde pasó (antes era un alert()
+  // del navegador). Y los casilleros que están reduciendo una foto.
+  const [avisos, setAvisos] = useState<Record<string, string>>({});
+  const [procesando, setProcesando] = useState<Record<string, boolean>>({});
 
   // Initialize empty slots
   const slots = requiredDocuments.length > 0 ? requiredDocuments : [GENERIC_SLOT];
@@ -41,6 +46,7 @@ export default function DocumentUploader({
     if (nuevoModo === modo) return;
     setModo(nuevoModo);
     setDocMap({});
+    setAvisos({});
   };
 
   // Update parent whenever docMap or modo change
@@ -75,50 +81,83 @@ export default function DocumentUploader({
       ? slot.extensiones.map((ext) => (ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`))
       : FALLBACK_EXTENSIONS;
 
-  const validateFile = (file: File, allowedExtensions: string[]): boolean => {
-    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!allowedExtensions.includes(extension)) {
-      alert(`El archivo "${file.name}" no corresponde a un formato permitido (${allowedExtensions.join(', ')}).`);
-      return false;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      alert(`El archivo "${file.name}" excede el tamaño límite permitido de 15MB.`);
-      return false;
-    }
-    return true;
-  };
+  const avisar = (slotName: string, texto: string) =>
+    setAvisos((prev) => ({ ...prev, [slotName]: texto }));
 
-  const addFilesToSlot = (
+  const addFilesToSlot = async (
     slotName: string,
     newFiles: FileList | File[],
     allowedExtensions: string[],
     maxFiles: number = MAX_FILES_PER_DOC,
   ) => {
+    const lista = Array.from(newFiles);
     const currentSlotFiles = docMap[slotName] || [];
     if (currentSlotFiles.length >= maxFiles) {
-      alert(`Ha alcanzado el límite máximo de ${maxFiles} archivos para "${slotName}".`);
+      avisar(slotName, `Ya adjuntaste el máximo de ${maxFiles} archivo(s) en «${slotName}».`);
       return;
     }
 
     const availableSlots = maxFiles - currentSlotFiles.length;
-    const filesToAdd: File[] = [];
+    const problemas: string[] = [];
+    const candidatos = lista.slice(0, availableSlots).filter((file) => {
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (allowedExtensions.includes(extension)) return true;
+      problemas.push(`«${file.name}» no es un formato aceptado aquí (${allowedExtensions.join(', ')}).`);
+      return false;
+    });
+    if (lista.length > availableSlots) {
+      problemas.push(`Solo se agregaron ${availableSlots} archivo(s): el máximo en «${slotName}» es ${maxFiles}.`);
+    }
 
-    for (let i = 0; i < Math.min(newFiles.length, availableSlots); i++) {
-      const file = newFiles[i];
-      if (validateFile(file, allowedExtensions)) {
+    setProcesando((prev) => ({ ...prev, [slotName]: true }));
+    const filesToAdd: File[] = [];
+    try {
+      for (const original of candidatos) {
+        // Fotos del teléfono: se reducen aquí, antes del límite de 15 MB, para que
+        // una foto grande deje de ser un problema.
+        const file = await comprimirImagen(original, allowedExtensions);
+        if (file.size > 15 * 1024 * 1024) {
+          problemas.push(`«${file.name}» pesa más de 15 MB. Adjunta una versión más liviana.`);
+          continue;
+        }
         filesToAdd.push(file);
       }
+    } finally {
+      setProcesando((prev) => ({ ...prev, [slotName]: false }));
     }
+
+    setAvisos((prev) => {
+      const next = { ...prev };
+      if (problemas.length > 0) next[slotName] = problemas.join(' ');
+      else delete next[slotName];
+      return next;
+    });
 
     if (filesToAdd.length > 0) {
       setDocMap((prev) => ({
         ...prev,
-        [slotName]: [...(prev[slotName] || []), ...filesToAdd],
+        [slotName]: [...(prev[slotName] || []), ...filesToAdd].slice(0, maxFiles),
       }));
     }
   };
 
+  const avisoDe = (slotName: string) => (
+    <>
+      {procesando[slotName] && <span className="slot-procesando">Preparando archivo…</span>}
+      {avisos[slotName] && (
+        <span className="error-text slot-aviso" role="alert">
+          {avisos[slotName]}
+        </span>
+      )}
+    </>
+  );
+
   const removeFileFromSlot = (slotName: string, fileIndex: number) => {
+    setAvisos((prev) => {
+      const next = { ...prev };
+      delete next[slotName];
+      return next;
+    });
     setDocMap((prev) => {
       const current = prev[slotName] || [];
       const updated = current.filter((_, i) => i !== fileIndex);
@@ -180,6 +219,8 @@ export default function DocumentUploader({
           ))}
         </div>
       )}
+
+      {avisoDe(EXTRA_DOCS_SLOT_NAME)}
 
       {(docMap[EXTRA_DOCS_SLOT_NAME] || []).length < maxExtra && (
         <label className="slot-dropzone">
@@ -338,6 +379,8 @@ export default function DocumentUploader({
                   </div>
                 )}
 
+                {avisoDe(ARCHIVO_UNICO_SLOT_NAME)}
+
                 {!isFull && (
                   <label className="slot-dropzone">
                     <input
@@ -440,6 +483,8 @@ export default function DocumentUploader({
                   ))}
                 </div>
               )}
+
+              {avisoDe(slotName)}
 
               {/* Upload Dropzone / Button */}
               {!isFull && (

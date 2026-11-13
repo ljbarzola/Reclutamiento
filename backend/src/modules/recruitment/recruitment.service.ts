@@ -240,11 +240,11 @@ export class RecruitmentService {
       const extension = ('.' + (file.originalname.split('.').pop() || '')).toLowerCase();
       if (!ALLOWED_EXTENSIONS.includes(extension)) {
         throw new BadRequestException(
-          `File type not allowed: ${file.originalname}. Allowed types: ${ALLOWED_EXTENSIONS.join(', ')}`,
+          `Formato de archivo no permitido (se aceptan ${ALLOWED_EXTENSIONS.join(', ')}): ${file.originalname}`,
         );
       }
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        throw new BadRequestException(`File exceeds maximum size of 15MB: ${file.originalname}`);
+        throw new BadRequestException(`Un archivo pesa más de 15 MB: ${file.originalname}`);
       }
     }
   }

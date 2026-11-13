@@ -10,12 +10,13 @@ delete process.env.RRHH_EMAIL;
 process.env.GOOGLE_DRIVE_RECRUITMENT_FOLDER_ID = 'carpeta-de-prueba-falsa';
 
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { existsSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { RecruitmentModule } from './recruitment.module';
 import { GoogleDriveService } from '../../google/google-drive.service';
 import { GoogleEmailService } from '../../google/google-email.service';
+import { ocultarNombresDeArchivo } from './submit-errors-log.filter';
 
 const uploadsDir = join(__dirname, '..', '..', 'uploads');
 
@@ -333,5 +334,59 @@ describe('POST /api/recruitment/applications/submit (HTTP real, Drive/Gmail fals
     );
     expect(res.status).toBe(201);
     expect(leftovers()).toEqual([]);
+  });
+
+  // La vacante «Custodio» pide 23 documentos: con el tope anterior de 20 archivos,
+  // quien adjuntaba todo recibía 400 («Too many files»).
+  it('acepta una postulación con más de 20 archivos (hasta 60)', async () => {
+    const muchos = Array.from({ length: 45 }, (_, i) => ({ name: `Cédula - parte${i + 1}.pdf` }));
+    const res = await post(form(legitFields, muchos));
+    expect(res.status).toBe(201);
+    expect(fakes.state.uploads).toHaveLength(45);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('más de 60 archivos se rechaza con 400 y no deja temporales', async () => {
+    const demasiados = Array.from({ length: 61 }, (_, i) => ({ name: `Cédula - parte${i + 1}.pdf` }));
+    const res = await post(form(legitFields, demasiados));
+    expect(res.status).toBe(400);
+    expect(fakes.drive.uploadFile).not.toHaveBeenCalled();
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('un rechazo queda en el log con su motivo y sin datos personales', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    try {
+      const res = await post(
+        form({ ...legitFields, email: 'no-es-correo' }, [{ name: 'Cédula - JUAN PEREZ.pdf' }]),
+      );
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(JSON.stringify(body.message)).toContain('correo electrónico no es válido');
+      const lineas = warn.mock.calls.map((c) => String(c[0]));
+      const linea = lineas.find((l) => l.startsWith('Postulación rechazada (400)'));
+      expect(linea).toBeDefined();
+      expect(linea).toContain('vacante=1');
+      expect(linea).toContain('correo electrónico no es válido');
+      for (const dato of ['PEREZ', 'JUAN', '0912345678', 'no-es-correo', '0991234567']) {
+        expect(linea).not.toContain(dato);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('ocultarNombresDeArchivo', () => {
+  it('oculta el nombre del archivo y conserva el tipo MIME', () => {
+    expect(ocultarNombresDeArchivo('Un archivo pesa más de 15 MB: Cédula - JUAN PEREZ.jpg')).toBe(
+      'Un archivo pesa más de 15 MB: [nombre de archivo oculto]',
+    );
+    expect(ocultarNombresDeArchivo('Tipo de archivo no permitido: image/heic')).toBe(
+      'Tipo de archivo no permitido: image/heic',
+    );
+    expect(ocultarNombresDeArchivo('Faltan documentos requeridos: Cédula, Hoja de Vida')).toBe(
+      'Faltan documentos requeridos: Cédula, Hoja de Vida',
+    );
   });
 });

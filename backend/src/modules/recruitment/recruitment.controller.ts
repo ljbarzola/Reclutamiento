@@ -6,6 +6,7 @@ import {
   Body,
   UploadedFiles,
   UseInterceptors,
+  UseFilters,
   BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -14,6 +15,8 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { RecruitmentService } from './recruitment.service';
 import { SubmitApplicationDto } from './dto/submit-application.dto';
 import { CleanupUploadsInterceptor } from './cleanup-uploads.interceptor';
+import { SubmitErrorsLogFilter } from './submit-errors-log.filter';
+import { MAX_ARCHIVOS_POR_POSTULACION } from './recruitment.limits';
 
 @ApiTags('recruitment')
 @Controller('recruitment')
@@ -60,7 +63,9 @@ export class RecruitmentController {
   })
   // El orden importa: CleanupUploadsInterceptor va DESPUÉS de FilesInterceptor para
   // rodear al ValidationPipe y borrar los temporales aunque el cuerpo sea inválido.
-  @UseInterceptors(FilesInterceptor('files', 20), CleanupUploadsInterceptor)
+  @UseInterceptors(FilesInterceptor('files', MAX_ARCHIVOS_POR_POSTULACION), CleanupUploadsInterceptor)
+  // Registra el motivo de cualquier rechazo (multer, validación, límite de intentos…).
+  @UseFilters(SubmitErrorsLogFilter)
   async submitApplication(
     @Body() dto: SubmitApplicationDto,
     @UploadedFiles() files: Express.Multer.File[],

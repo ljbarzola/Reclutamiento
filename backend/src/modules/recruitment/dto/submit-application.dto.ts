@@ -24,7 +24,7 @@ const stringToBoolean = ({ value }: { value: unknown }) => value === 'true' || v
 export class SubmitApplicationDto {
   @ApiProperty({ example: 'Juan Pérez' })
   @IsString()
-  @MinLength(3)
+  @MinLength(3, { message: 'Escribe tu nombre completo.' })
   @MaxLength(200)
   nombre: string;
 
@@ -42,7 +42,7 @@ export class SubmitApplicationDto {
   @ApiPropertyOptional({ example: 'juan.perez@email.com' })
   @Transform(emptyToUndefined)
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'El correo electrónico no es válido. Revísalo e inténtalo de nuevo.' })
   @MaxLength(254)
   email?: string;
 

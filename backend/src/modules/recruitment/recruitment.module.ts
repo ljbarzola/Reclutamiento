@@ -5,6 +5,7 @@ import { mkdirSync } from 'fs';
 import { RecruitmentController } from './recruitment.controller';
 import { RecruitmentService } from './recruitment.service';
 import { GoogleModule } from '../../google/google.module';
+import { MAX_ARCHIVOS_POR_POSTULACION, MAX_CAMPOS_POR_POSTULACION } from './recruitment.limits';
 
 const uploadsDir = join(__dirname, '..', '..', 'uploads');
 mkdirSync(uploadsDir, { recursive: true });
@@ -29,10 +30,10 @@ const ALLOWED_MIMES = [
       // "mayor o igual" y un archivo de exactamente 15 MB debe seguir aceptándose.
       limits: {
         fileSize: 15 * 1024 * 1024 + 1024,
-        files: 20,
-        fields: 30,
+        files: MAX_ARCHIVOS_POR_POSTULACION,
+        fields: MAX_CAMPOS_POR_POSTULACION,
         fieldSize: 256 * 1024,
-        parts: 60,
+        parts: MAX_ARCHIVOS_POR_POSTULACION + MAX_CAMPOS_POR_POSTULACION,
       },
       fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIMES.includes(file.mimetype)) {

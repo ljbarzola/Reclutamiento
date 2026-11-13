@@ -1446,3 +1446,63 @@ body {
     padding-right: 20px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ENVÍO: AVISOS POR CASILLERO, TOTAL ADJUNTADO Y PROGRESO
+   ═══════════════════════════════════════════════════════════════ */
+
+.slot-aviso {
+  display: block;
+  margin: 6px 0;
+}
+
+.slot-procesando {
+  display: block;
+  margin: 6px 0;
+  font-size: 0.775rem;
+  color: var(--text-muted);
+}
+
+.total-adjunto {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.total-adjunto.is-excedido {
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.submit-error {
+  display: block;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  scroll-margin: 96px;
+}
+
+.envio-progreso {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.envio-progreso-barra {
+  height: 8px;
+  background: var(--gris-claro);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.envio-progreso-barra > span {
+  display: block;
+  height: 100%;
+  background: var(--azul-claro);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.envio-progreso-texto {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
