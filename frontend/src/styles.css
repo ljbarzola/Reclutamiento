@@ -1506,3 +1506,21 @@ body {
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+
+/* Botón «Usar …» que corrige un correo mal escrito con un toque. */
+.btn-sugerencia {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--azul-claro);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--azul-claro);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-sugerencia:hover {
+  background: var(--gris-fondo);
+}
