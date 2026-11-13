@@ -37,6 +37,28 @@ const job2 = {
   ],
 };
 
+// Copia de la configuración real de la vacante #15 «Custodio» (2026-11-13): 23
+// documentos, 19 obligatorios, uno con «/» en el nombre.
+const DOCS_CUSTODIO: [string, boolean][] = [
+  ['Hoja de Vida', true], ['Cédula', true], ['Certificado de votación vigente', true],
+  ['Licencia de conducir', false], ['Registro de titulo de bachiller', true],
+  ['Certificado de acreditación', true], ['Credencial nivel I', true], ['Credencia nivel II', true],
+  ['Diploma nivel I', true], ['Diploma nivel II', true], ['Diploma de reentrenamiento', true],
+  ['Certificados adicionales', false], ['Antecedentes penales', true],
+  ['Tiempo del empleador/aportaciones IESS', true], ['Certificado laboral', true],
+  ['Certificado de honorabilidad', true], ['Planilla de luz', true], ['Certificado de vacuna Covid', true],
+  ['Certificado médico', true], ['Certificado psicológico', true], ['Certificado toxicológico', true],
+  ['Libreta militar', false], ['Certificado de no pertenecer a CCFFAA', false],
+];
+const jobCustodio = {
+  ...job1,
+  id: 15,
+  puesto: 'Custodio',
+  archivosRequeridos: DOCS_CUSTODIO.map(([nombre, obligatorio]) => ({ nombre, extensiones: [], obligatorio })),
+};
+// Igual que DocumentUploader.tsx: «<documento sin símbolos> - <archivo>».
+const prefijoPortal = (doc: string) => doc.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_ -]/g, '').trim();
+
 // Payload tal como lo arma el formulario desplegado (origin/main): TODOS los campos
 // de la vacante viajan en extraFields con su etiqueta; nombre = "apellidos nombres".
 const legitFields = {
@@ -60,8 +82,10 @@ const legitFields = {
 function makeFakes() {
   const state: any = { existing: null, readThrows: false, uploads: [], stored: null, email: null };
   const drive = {
-    getJobsFromDrive: jest.fn(async () => [job1, job2]),
-    getJobByIdFromDrive: jest.fn(async (id: number) => [job1, job2].find((j) => j.id === id) || null),
+    getJobsFromDrive: jest.fn(async () => [job1, job2, jobCustodio]),
+    getJobByIdFromDrive: jest.fn(
+      async (id: number) => [job1, job2, jobCustodio].find((j) => j.id === id) || null,
+    ),
     getOrCreateJobFolder: jest.fn(async () => 'job-folder'),
     findOrCreateCandidateFolder: jest.fn(async () => 'cand-folder'),
     readCandidateJson: jest.fn(async () => state.existing),
@@ -350,6 +374,43 @@ describe('POST /api/recruitment/applications/submit (HTTP real, Drive/Gmail fals
     const demasiados = Array.from({ length: 61 }, (_, i) => ({ name: `Cédula - parte${i + 1}.pdf` }));
     const res = await post(form(legitFields, demasiados));
     expect(res.status).toBe(400);
+    expect(fakes.drive.uploadFile).not.toHaveBeenCalled();
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('Custodio: los 23 documentos con 2 archivos cada uno y 5 adicionales (51 archivos) se aceptan', async () => {
+    const archivos = DOCS_CUSTODIO.flatMap(([doc]) => [
+      { name: `${prefijoPortal(doc)} - frente.jpg`, type: 'image/jpeg' },
+      { name: `${prefijoPortal(doc)} - reverso.pdf` },
+    ]);
+    for (let i = 1; i <= 5; i++) archivos.push({ name: `extra${i}.pdf` });
+    const res = await post(form({ ...legitFields, jobId: '15' }, archivos));
+    expect(res.status).toBe(201);
+    expect(fakes.state.uploads).toHaveLength(51);
+    expect(fakes.state.stored.puesto).toBe('Custodio');
+    expect(fakes.state.uploads.map((u: any) => u.name)).toContain(
+      'Tiempo del empleadoraportaciones IESS - frente.jpg',
+    );
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('Custodio: solo los 19 obligatorios (un archivo cada uno) también se acepta', async () => {
+    const archivos = DOCS_CUSTODIO.filter(([, ob]) => ob).map(([doc]) => ({
+      name: `${prefijoPortal(doc)} - doc.pdf`,
+    }));
+    expect(archivos).toHaveLength(19);
+    const res = await post(form({ ...legitFields, jobId: '15' }, archivos));
+    expect(res.status).toBe(201);
+    expect(fakes.state.uploads).toHaveLength(19);
+  });
+
+  it('Custodio: si falta un obligatorio se rechaza diciendo cuál', async () => {
+    const archivos = DOCS_CUSTODIO.filter(([doc, ob]) => ob && doc !== 'Planilla de luz').map(
+      ([doc]) => ({ name: `${prefijoPortal(doc)} - doc.pdf` }),
+    );
+    const res = await post(form({ ...legitFields, jobId: '15' }, archivos));
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toBe('Faltan documentos requeridos: Planilla de luz');
     expect(fakes.drive.uploadFile).not.toHaveBeenCalled();
     expect(leftovers()).toEqual([]);
   });
