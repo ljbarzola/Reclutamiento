@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { Job, CampoRequerido } from '../../types/recruitment';
 import { recruitmentService } from '../../services/recruitment.service';
 import DocumentUploader, { UploadMode } from './DocumentUploader';
 import SuccessModal from './SuccessModal';
+import { MAX_TOTAL_BYTES, formatoMB, mensajeErrorEnvio } from '../../utils/erroresEnvio';
 
 // TODO (futuro): Agregar aria-describedby a cada input apuntando a su mensaje de error
 // para mejorar accesibilidad con lectores de pantalla.
@@ -129,23 +129,16 @@ function validateCampoValor(campo: CampoRequerido, valor: string): string | null
     }
     case 'TEXTO':
     default:
-      return /^[\p{L}\p{N}\s'.-]+$/u.test(value)
+      // Direcciones y respuestas libres llevan comas, paréntesis, #, / o °
+      // («Quito, Carcelén, calle 5 #12»): antes se rechazaban.
+      return /^[\p{L}\p{N}\s'.,;:()#°º/&"-]+$/u.test(value)
         ? null
         : `${campo.nombre} contiene caracteres no permitidos.`;
   }
 }
 
 export function getSubmitErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { message?: string | string[] } | undefined;
-    if (data?.message) {
-      return Array.isArray(data.message) ? data.message.join(', ') : data.message;
-    }
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Ocurrió un error al registrar la postulación.';
+  return mensajeErrorEnvio(error);
 }
 
 export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps) {
@@ -162,6 +155,16 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
   const [applicationResult, setApplicationResult] = useState<any>(null);
   const [missingDocSlots, setMissingDocSlots] = useState<string[]>([]);
   const [aceptaTratamientoDatos, setAceptaTratamientoDatos] = useState(false);
+  // null = no se está enviando; 0–100 = porcentaje de documentos subidos.
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const totalBytes = files.reduce((suma, f) => suma + f.size, 0);
+
+  // El mensaje se pinta junto al botón, pero en un teléfono el postulante puede
+  // estar mirando otra parte: se lleva a la vista para que no crea que «no pasó nada».
+  useEffect(() => {
+    if (submitError) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [submitError]);
 
   const handleFieldChange = (nombre: string, value: string) => {
     setValues((prev) => ({ ...prev, [nombre]: value }));
@@ -244,7 +247,20 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       }
     }
 
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      const pesados = [...files]
+        .sort((a, b) => b.size - a.size)
+        .slice(0, 3)
+        .map((f) => `${f.name} (${formatoMB(f.size)})`)
+        .join(', ');
+      setSubmitError(
+        `Tus documentos suman ${formatoMB(totalBytes)} y el máximo para enviar es ${formatoMB(MAX_TOTAL_BYTES)}. Los más pesados son: ${pesados}. Reemplázalos por versiones más livianas (por ejemplo, una foto en vez de un escaneo en alta calidad) e inténtalo de nuevo.`,
+      );
+      return;
+    }
+
     setIsSubmitting(true);
+    setProgreso(0);
     try {
       const standard: Record<StandardKey, string> = {
         nombre: '',
@@ -291,13 +307,14 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       }
       files.forEach((file) => formData.append('files', file));
 
-      const result = await recruitmentService.submitApplication(formData);
+      const result = await recruitmentService.submitApplication(formData, setProgreso);
       setApplicationResult(result);
       setShowSuccess(true);
     } catch (error) {
       setSubmitError(getSubmitErrorMessage(error));
     } finally {
       setIsSubmitting(false);
+      setProgreso(null);
     }
   };
 
@@ -359,6 +376,13 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
       {/* Document Uploader */}
       <DocumentUploader requiredDocuments={job.archivosRequeridos || []} onFilesChange={handleFilesChange} missingSlots={missingDocSlots} />
 
+      {files.length > 0 && (
+        <p className={`total-adjunto ${totalBytes > MAX_TOTAL_BYTES ? 'is-excedido' : ''}`}>
+          Total adjuntado: {formatoMB(totalBytes)} de {formatoMB(MAX_TOTAL_BYTES)} permitidos
+          {totalBytes > MAX_TOTAL_BYTES && '. Reemplaza los archivos más pesados para poder enviar.'}
+        </p>
+      )}
+
       <div className="consent-checkbox-row">
         <input
           id="acepta-tratamiento-datos"
@@ -377,7 +401,31 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
         </label>
       </div>
 
-      {submitError && <span className="error-text">{submitError}</span>}
+      {submitError && (
+        <div ref={errorRef} className="error-text submit-error" role="alert">
+          {submitError}
+        </div>
+      )}
+
+      {progreso !== null && (
+        <div className="envio-progreso" aria-live="polite">
+          <div
+            className="envio-progreso-barra"
+            role="progressbar"
+            aria-label="Avance del envío"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progreso}
+          >
+            <span style={{ width: `${progreso}%` }} />
+          </div>
+          <span className="envio-progreso-texto">
+            {progreso < 100
+              ? `Subiendo tus documentos… ${progreso} %. No cierres esta página.`
+              : 'Documentos recibidos. Guardando tu postulación, puede tardar un minuto…'}
+          </span>
+        </div>
+      )}
 
       {/* Submit Button */}
       <div className="form-actions">
@@ -389,7 +437,7 @@ export default function ApplicationForm({ job, onSuccess }: ApplicationFormProps
           {isSubmitting ? (
             <>
               <span className="spinner-small"></span>
-              Enviando...
+              {progreso !== null && progreso < 100 ? `Enviando… ${progreso} %` : 'Guardando…'}
             </>
           ) : (
             'Enviar Postulación'
